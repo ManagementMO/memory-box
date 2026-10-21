@@ -347,7 +347,7 @@ svg { flex-shrink: 0; }
   .pan-controls { bottom: 46px; }.pan-controls>button { width: 33px; height: 36px; }
   .canvas-footnote { display: none; }.world-coordinate { top: 10px; left: 8px; font-size: 11px; }
   .canvas-guidance { top: 10px; right: 8px; max-width: calc(100% - 130px); font-size: 11px; }
-  .scene-invitation { top: 52px; left: 12px; right: 12px; width: auto; max-width: 300px; padding: 13px; }
+  .scene-invitation { display: none; }
   .scene-invitation h2 { font-size: 25px; }.scene-invitation p { font-size: 12px; }.scene-invitation .button { min-height: 39px; white-space: nowrap; }.scene-invitation>div { gap: 10px; }
   .world-bottomline { padding: 8px 13px; }.scene-shortcuts { gap: 13px; }.scene-shortcuts button { font-size: 10px; }.world-revision { display: none; }
   .placement-bar { top: 52px; left: 10px; transform: none; min-width: 0; width: calc(100% - 20px); max-width: none; padding: 11px; gap: 8px; }
