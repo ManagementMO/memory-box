@@ -234,6 +234,8 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   let writes = 0;
   await page.route(/\/api\/(paint|memories|uploads)(\/|$)/, route => { writes++; return route.abort(); });
   await page.getByRole("button", { name: "Paint", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Explore canvas", exact: true })).toHaveAttribute("aria-pressed", "false");
   await panel(page).getByRole("button", { name: "Draw pixels", exact: true }).click();
   await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
   const point = await worldPoint(page);
@@ -277,6 +279,8 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   await page.getByRole("button", { name: "Leave something", exact: true }).click();
   const draft = "A recoverable unpublished draft from the browser test.";
   await page.locator(".composer textarea").fill(draft);
+  await expect(page.getByRole("button", { name: "Leave", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Explore canvas", exact: true })).toHaveAttribute("aria-pressed", "false");
   await panel(page).getByRole("button", { name: "Choose its place", exact: true }).click();
   await page.getByRole("button", { name: "Cancel placement", exact: true }).click();
   await expect(page.locator(".composer textarea")).toHaveValue(draft);
