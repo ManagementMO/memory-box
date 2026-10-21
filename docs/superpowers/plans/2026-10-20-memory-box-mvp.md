@@ -65,6 +65,6 @@ Interfaces: POST /api/uploads accepts {name,mime,size} and returns {assetId,path
 Files: scripts/test-live.ts, e2e/*, README.md, deployment configuration, parent outputs delivery report.
 
 - [x] Run typecheck, focused unit/integration tests, production build.
-- [ ] Test two independent browser contexts for realtime paint, memory creation, upload, build-on relation, reconnect, search, citation navigation, ownership, and source deletion.
+- [x] Test two independent guest clients for committed realtime paint; exercise browser memory creation, upload, build-on relation, reconnect, search, citation navigation, ownership, and cross-tab source deletion.
 - [x] Inspect 320/390/1024+ layouts and keyboard/reduced-motion behavior, fix visual defects.
-- [ ] Create/push the repository, deploy with server-only secrets, rerun key live flows, and record exact local/deployed evidence and any remaining gate.
+- [x] Create/push the repository, deploy with server-only secrets, rerun key live flows, and record exact local/deployed evidence and accepted pilot limits.

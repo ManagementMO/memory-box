@@ -29,15 +29,18 @@ The user approved the researched design and interactive mockup, then explicitly 
 - Supabase CLI2.117.0, Node22.22.3, Next16.4.2, React19.3.1, SupabaseJS2.118.0, AI SDK7.0.148.
 - 71 focused unit tests, six desktop/mobile browser tests, typecheck, optimized production build, and npm audit (zero findings) passed.
 - Expanded hosted database tests passed and cleaned their exact fixtures. Covered browser write denial, ordering, retries, partial undo, asset privacy, model namespace filtering, indexing freshness, ownership, and deletion.
-- Full HTTP/live Supabase test passed 13 checks: two guest identities, real private Realtime delivery, idempotent painting, separate build-on authorship, private staging/sanitized image publication, actual semantic retrieval, real cited generation, unrelated-question abstention, version conflicts, image revocation, source deletion with child survival, and undo. Exact fixtures cleaned afterward.
+- The deployed HTTP/live Supabase test passed 14 checks: two guest identities, real private Realtime delivery, idempotent painting, separate build-on authorship, private staging/sanitized image publication, immediate authored-text search, a visual detail absent from author text found through the actual image description, nonliteral semantic retrieval, real cited generation, unrelated-question abstention, version conflicts, image revocation, source deletion with child survival, and undo. Exact fixtures cleaned afterward.
 - Browser testing published real text/image contributions, followed inspired-by threads, verified semantic Find and actual Ask, edited/removed sources while an answer or another tab was open, painted/undid, and recovered after offline/online. Viewports 1440/1024/390/320 checked. Exact design fixtures removed; the clean world has ten starters and zero community memories.
 - Independent review findings were fixed with red/green regressions: delayed Ask source-body removal, current-source UI projection, late query response rejection, edit/query/upload/index global ceilings, shared-image deletion, exhausted lease state, and finalization/cleanup races.
 - A real Storage cleanup proof removed both staging and canonical private objects and recorded completion, then removed its exact fixture account/metadata. Daily batches can claim100, exceeding60 maximum new upload reservations. SQL rollback regressions verify61 claims in one batch, hidden-reference retention, and publication fencing.
 - Deployment input inventory and generated browser bundle were scanned against the actual configured secret values: zero matches. Explicit .vercelignore excludes private auth files, environment files, and browser test state; Git ignores them independently.
 - Two live DB issues were fixed with migrations: lifecycle checks preventing content scrubbing, and retryable SQLSTATE 40001 causing stale edits to hang. Stale edits now return PT409 promptly.
 - Supabase advisors found no schema/function/index warnings. Guest access to the public collaboration topic is intentional; password-leak protection is inapplicable to the current anonymous-only flow.
+- Public source: https://github.com/ManagementMO/memory-box on codex/memory-box-mvp. Initial implementation commit503e892 passed GitHub Actions unit/typecheck/build CI.
+- Public deployment: https://memory-box-commons.vercel.app. Vercel production is Ready; runtime functions verified in sfo1 alongside Supabase us-west-1. Production health reports10 originals/10 indexed after fixture cleanup.
+- Six browser tests also passed against the production URL. The denied-admission and delayed-response cases deliberately intercept only their tested request; the normal browsing/Find checks use actual production services.
+- Actual 30-client load and long-term community participation are not measured. Search cutoff calibration remains a tiny English seed probe. Citation membership is enforced; sentence-level semantic support is still a model-quality limit. Guest ownership has no cross-device recovery yet.
 
-## Remaining
+## Release handoff
 
-- Deploy with configured server-only secrets; recheck the same real flow on production and clean fixtures.
-- Commit/push exact source and save a user-facing delivery report with proof and any unresolved gate.
+The app is deployed and source is public. The final user-facing handoff records screenshots, production check evidence, source/CI links, run/operation commands, and the accepted pilot limits. No runtime feature or provider activation gate remains.

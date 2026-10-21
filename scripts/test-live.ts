@@ -19,7 +19,7 @@ async function request(actor:number,path:string,body?:unknown,method="POST"){
  const json=await response.json();return {status:response.status,body:json};
 }
 async function snapshot(){const r=await fetch(origin+"/api/world");assert.equal(r.status,200);return r.json();}
-async function waitFor(check:()=>Promise<boolean>,maximum=12000){const until=Date.now()+maximum;while(Date.now()<until){if(await check())return;await new Promise(resolve=>setTimeout(resolve,180));}throw Error("Expected live state did not arrive");}
+async function waitFor(check:()=>Promise<boolean>,maximum=12000,interval=180){const until=Date.now()+maximum;while(Date.now()<until){if(await check())return;await new Promise(resolve=>setTimeout(resolve,interval));}throw Error("Expected live state did not arrive");}
 
 async function main(){
  for(let i=0;i<clients.length;i++){
@@ -53,13 +53,16 @@ async function main(){
  const beforePublish=await fetch(origin+`/api/assets/${upload.body.assetId}`);assert.equal(beforePublish.status,404);
  const image=await sharp({create:{width:180,height:120,channels:3,background:"#354FB2"}}).png().withExif({IFD0:{Artist:"Private camera metadata"}}).toBuffer();
  const uploaded=await clients[0].storage.from("memory-staging").uploadToSignedUrl(upload.body.path,upload.body.token,image,{contentType:"image/png"});assert.equal(uploaded.error,null);
- const picture=await request(0,"/api/memories",{clientId:randomUUID(),type:"image",title:`Windy lighthouse ${runId}`,body:"A blue rectangle illustration left with a memory of a windy lighthouse picnic.",assetId:upload.body.assetId,color:"#BED5DE",x:1000,y:680,sceneId:"garden",inspiredBy:created.body.id});
+ const picture=await request(0,"/api/memories",{clientId:randomUUID(),type:"image",title:`Windy lighthouse ${runId}`,body:"A little piece of a windy lighthouse picnic.",assetId:upload.body.assetId,color:"#BED5DE",x:1000,y:680,sceneId:"garden",inspiredBy:created.body.id});
  assert.equal(picture.status,201);memories.push(picture.body.id);
  const delivered=await fetch(origin+picture.body.imageUrl);assert.equal(delivered.status,200);assert.equal(delivered.headers.get("content-type"),"image/webp");
  const metadata=await sharp(Buffer.from(await delivered.arrayBuffer())).metadata();assert.equal(metadata.exif,undefined);
  passed("private staged image becomes a sanitized published raster");
  const search=await request(1,"/api/search",{query:`Radio summer ${runId}`});assert.equal(search.status,200);assert.ok(search.body.results.some((r:{memory:{id:string}})=>r.memory.id===created.body.id));
- passed("new original words and image captions are actually searchable");
+ passed("new original words are immediately searchable");
+ await waitFor(async()=>{const current=await snapshot();return current.memories.some((m:{id:string;indexStatus:string;imageDescription?:string})=>m.id===picture.body.id&&m.indexStatus==="ready"&&/blue/i.test(m.imageDescription||""));},65000,800);
+ const visual=await request(1,"/api/search",{query:"blue"});assert.equal(visual.status,200);assert.ok(visual.body.results.some((r:{memory:{id:string}})=>r.memory.id===picture.body.id));
+ passed("a visual detail absent from the author's words is searchable through the actual image description");
  const semantic=await request(1,"/api/search",{query:"childhood road trips"});assert.equal(semantic.status,200);assert.equal(semantic.body.mode,"hybrid");assert.ok(semantic.body.results.some((r:{memory:{title:string};match:string})=>r.memory.title==="The long way home"&&r.match!=="keyword"));
  passed("a nonliteral paraphrase retrieves the childhood car memory with real vectors");
  const answer=await request(1,"/api/ask",{query:"What do these memories say about music and family?"});assert.equal(answer.status,200);assert.equal(answer.body.status,"answered");

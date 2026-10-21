@@ -2,6 +2,8 @@
 
 A little world we leave together. Paint a shared picture, leave an original memory, build on someone else's contribution, and ask the box what connects it all.
 
+**[Open the live commons](https://memory-box-commons.vercel.app)**
+
 Memory Box combines a finite collaborative pixel canvas with an attributed collection of text, images, and links. The canvas is shared; each memory remains its author's original. A response creates a separate memory connected by an explicit “built on” thread.
 
 ## Try the loop
@@ -88,6 +90,8 @@ TEST_BASE_URL=https://YOUR_DEPLOYMENT npm run test:live
 Unit tests cover validation, image processing, model boundaries, citation schemas, retrieval fallback, source-version changes, and request origins. Hosted tests exercise real RLS, ordering, idempotency, partial undo, asset eligibility, indexing, ownership, deletion, Realtime, and actual provider calls. Live scripts create disposable fixtures and clean their exact records; run them against a dedicated project or the authorized pilot, never an unrelated database.
 
 The live HTTP script performs model calls and consumes the pilot's normal budgets. It checks citation membership and behavior, not a universal guarantee that every generated sentence is entailed by its source.
+
+The deployed release passed 14 live integration checks, including a visual search detail absent from the image author's text, plus six desktop/mobile browser checks. See the [build ledger](docs/build-ledger.md) for the scope and limits of this evidence.
 
 ## Deploy and operate
 
