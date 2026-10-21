@@ -1,0 +1,14 @@
+auth/
+.env*
+.git/
+.next/
+.vercel/
+node_modules/
+.playwright-cli/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+.DS_Store
+supabase/.temp/
+supabase/.branches/

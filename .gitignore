@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.vercel/
+.supabase/
+supabase/.temp/
+supabase/.branches/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+.DS_Store
+auth/
+.playwright-cli/
+.vercel

@@ -1,0 +1,327 @@
+"use client";
+
+import { ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, CircleHelp, Flag, GitBranch, Leaf, Link2, List, Maximize2, MessageCircle, Minimize2, Paintbrush, Pencil, Plus, Search, Send, Sparkles, Trash2, Undo2, UserRound, WifiOff, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { AnswerResponse, Memory, NewMemory, SceneId, SearchResponse, SessionIdentity } from "@/lib/types";
+import { PAINT_COLORS, PAPER_COLORS, SCENES, SHAPES, memorySize, sceneById, sceneForPoint, shapePixels, suggestedSpot, type ShapeId } from "@/lib/scenes";
+import { api, uploadImage } from "@/lib/client/api";
+import { getBrowserSupabase } from "@/lib/client/supabase";
+import { useWorld } from "@/lib/client/use-world";
+import { answerSourcesChanged, citedSourceCount, projectSearch } from "@/lib/client/source-state";
+import { MemoryComposer, newDraft, type MemoryDraft } from "./memory-composer";
+import { MemoryResult } from "./memory-card";
+import { PixelShape } from "./pixel-shape";
+import { WorldCanvas, type CameraCommand, type PendingPlacement } from "./world-canvas";
+
+type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | null;
+type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
+const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "An open invitation", paint: "Build the picture", compose: "Leave something", inspect: "Original memory", search: "Find a memory", activity: "How it’s growing", browse: "The memory shelf", profile: "A name to leave behind", report: "Report a contribution" };
+const relativeDate = (date: string) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date));
+
+export function MemoryBoxApp() {
+  const { world, identity, setIdentity, connection, error: worldError, refresh, retry } = useWorld();
+  const [activeScene, setActiveScene] = useState<SceneId>("mixtape");
+  const [panel, setPanel] = useState<Panel>(null), [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<MemoryDraft | null>(null), [pending, setPending] = useState<Pending | null>(null);
+  const [shape, setShape] = useState<ShapeId>("speaker"), [paintColor, setPaintColor] = useState("#354FB2");
+  const [busy, setBusy] = useState(""), [formError, setFormError] = useState(""), [announcement, setAnnouncement] = useState("");
+  const [query, setQuery] = useState(""), [searchMode, setSearchMode] = useState<"find" | "ask">("find"), [scope, setScope] = useState<"all" | "scene">("all");
+  const [searchData, setSearchData] = useState<SearchResponse | AnswerResponse | null>(null), [searchBusy, setSearchBusy] = useState(false), [searchError, setSearchError] = useState("");
+  const [answerInvalid, setAnswerInvalid] = useState(false), [backToSearch, setBackToSearch] = useState(false);
+  const [lastPaint, setLastPaint] = useState<string | null>(null), [justPublished, setJustPublished] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false), [profileName, setProfileName] = useState("");
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [showAllSources, setShowAllSources] = useState(false);
+  const [reportId, setReportId] = useState<string | null>(null), [reportReason, setReportReason] = useState("");
+  const [command, setCommand] = useState<CameraCommand>({ key: 0, type: "fit" });
+  const panelHeading = useRef<HTMLHeadingElement>(null), searchInput = useRef<HTMLInputElement>(null), searchSequence = useRef(0);
+  const keepInputFocus = useRef(false);
+  const searchDataRef = useRef(searchData), connectionRef = useRef(connection);
+  searchDataRef.current = searchData; connectionRef.current = connection;
+
+  const selected = world?.memories.find((memory) => memory.id === selectedId);
+  const parent = world?.memories.find((memory) => memory.id === draft?.inspiredBy);
+  const active = sceneById(activeScene);
+  const panelTitle = panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
+  const canWrite = !!identity && connection === "live";
+  const isAnswer = (data: SearchResponse | AnswerResponse | null): data is AnswerResponse => !!data && "status" in data;
+  const currentSearchData = useMemo(() => searchData && world ? projectSearch(searchData, world.memories) : null, [searchData, world]);
+  const effectiveAnswerInvalid = answerInvalid || !!(searchData && "sourceVersions" in searchData && world && answerSourcesChanged(searchData.sourceVersions, world.memories));
+  const foundIds = (panel === "search" || backToSearch) ? currentSearchData?.results.map((result) => result.memory.id) ?? [] : [];
+
+  useEffect(() => { if (keepInputFocus.current) { keepInputFocus.current = false; return; } if (panel) panelHeading.current?.focus({ preventScroll: true }); }, [panel]);
+  useEffect(() => {
+    const url = draft?.previewUrl;
+    return () => { if (url?.startsWith("blob:")) URL.revokeObjectURL(url); };
+  }, [draft?.previewUrl]);
+  useEffect(() => {
+    const data = searchDataRef.current;
+    if (!world || !data) return;
+    if ("sourceVersions" in data && answerSourcesChanged(data.sourceVersions, world.memories)) {
+      setAnswerInvalid(true); setAnnouncement("A memory behind this answer changed. Ask again to read the current originals.");
+    }
+  }, [world]);
+
+  const cameraTo = useCallback((points: CameraCommand["points"], type: "focus" | "frame" = "focus") => setCommand((old) => ({ key: old.key + 1, type, points })), []);
+  const showScene = (id: SceneId) => {
+    setActiveScene(id); setSelectedId(null); setBackToSearch(false); setPending(null); setPanel("scene"); setFormError("");
+    const scene = sceneById(id); cameraTo([{ x: scene.x - 240, y: scene.y - 185, width: 480, height: 370 }], "frame");
+  };
+  const openMemory = (id: string, fromSearch = false) => {
+    const memory = world?.memories.find((item) => item.id === id);
+    setSelectedId(id); setPanel("inspect"); setPanelExpanded(false); setPending(null); setBackToSearch(fromSearch); setDeleteConfirm(false); setFormError(""); setJustPublished(null);
+    if (memory) { setActiveScene(memory.sceneId); cameraTo([{ ...memory, ...memorySize(memory) }]); }
+  };
+  const startMemory = (inspiredBy?: string, paintOperationId?: string) => {
+    setDraft(newDraft(inspiredBy, paintOperationId)); setPending(null); setPanel("compose"); setBackToSearch(false); setFormError("");
+    const original = world?.memories.find((memory) => memory.id === inspiredBy);
+    if (original) { setActiveScene(original.sceneId); setSelectedId(original.id); }
+    else setSelectedId(null);
+  };
+  const showPaint = () => { setPanel("paint"); setPending(null); setSelectedId(null); setBackToSearch(false); setFormError(""); };
+  const closePanel = () => { setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); };
+  const cancelPlacement = useCallback(() => { setPending((previous) => { setPanel(previous?.kind === "memory" ? "compose" : "paint"); return null; }); setFormError(""); }, []);
+
+  const previewMemory = () => {
+    if (!draft || !world) return;
+    setFormError("");
+    if (draft.type === "text" && !draft.body.trim()) { setFormError("Leave a few words before choosing a spot."); return; }
+    if (draft.type === "image" && !draft.previewUrl) { setFormError("Choose an image to leave in the box."); return; }
+    if (draft.file && (!/^image\/(png|jpeg|webp)$/.test(draft.file.type) || draft.file.size > 5 * 1024 * 1024)) { setFormError("Choose a PNG, JPEG, or WebP smaller than 5 MB."); return; }
+    if (draft.type === "link") {
+      try { const url = new URL(draft.url); if (!["https:", "http:"].includes(url.protocol)) throw new Error(); }
+      catch { setFormError("Add a complete http or https link."); return; }
+    }
+    if (draft.type === "link" && !draft.title.trim() && !draft.body.trim()) { setFormError("Add a title or a little context so someone can find this."); return; }
+    if (draft.editId) { void saveEdit(); return; }
+    const point = suggestedSpot(world.memories, activeScene, draft.type, parent);
+    setPending({ kind: "memory", ...point, sceneId: activeScene }); setPanel(null);
+    const size = memorySize({ type: draft.type }); cameraTo(parent ? [{ ...parent, ...memorySize(parent) }, { ...point, ...size }] : [{ ...point, ...size }], parent ? "frame" : "focus");
+    setAnnouncement("A place is suggested. Tap the world to move it, then leave it here.");
+  };
+  const startPaintPlacement = () => {
+    const point = activeScene === "mixtape" && shape === "speaker" ? { x: 804, y: 390 } : { x: active.x - 36, y: active.y - 100 };
+    setPending({ kind: "paint", ...point, shape, color: paintColor, opId: crypto.randomUUID() }); setPanel(null); setFormError("");
+    cameraTo([{ ...point, width: 72, height: 72 }]); setAnnouncement("Choose a spot for these pixels, then paint them into the shared picture.");
+  };
+  const updatePosition = useCallback((x: number, y: number, center = true) => {
+    if (busy) return;
+    setPending((old) => {
+      if (!old) return old;
+      const size = old.kind === "paint" ? { width: SHAPES[old.shape].rows[0].length * 6, height: SHAPES[old.shape].rows.length * 6 } : memorySize({ type: draft?.type ?? "text" });
+      const px = Math.max(0, Math.min(1200 - size.width, Math.round((x - (center ? size.width / 2 : 0)) / 6) * 6));
+      const py = Math.max(0, Math.min(720 - size.height, Math.round((y - (center ? size.height / 2 : 0)) / 6) * 6));
+      return old.kind === "paint" ? { ...old, x: px, y: py, opId: crypto.randomUUID() } : { ...old, x: px, y: py, sceneId: sceneForPoint(px + size.width / 2) };
+    });
+  }, [busy, draft?.type]);
+
+  const publish = useCallback(async () => {
+    if (!pending || !world || !identity || busy) return;
+    if (!canWrite) { setFormError("Reconnect to the live world before leaving this. Your draft is still here."); return; }
+    setFormError("");
+    try {
+      if (pending.kind === "paint") {
+        if (world.paintingPaused) throw new Error("Painting is paused for a moment. You can still leave a memory.");
+        setBusy("Saving pixels…");
+        const result = await api<{ operationId: string }>("/api/paint", { method: "POST", body: JSON.stringify({ opId: pending.opId, sceneId: sceneForPoint(pending.x + 36), cells: shapePixels(pending.shape, pending.color, pending.x, pending.y) }) });
+        setLastPaint(result.operationId); await refresh(); setPending(null); setPanel("scene"); setActiveScene(sceneForPoint(pending.x + 36));
+        setAnnouncement("Your pixels are part of the picture. Leave a memory with them, or keep building.");
+      } else if (draft) {
+        let assetId = draft.assetId;
+        if (draft.type === "image" && draft.file && !assetId) { setBusy("Uploading your image…"); assetId = await uploadImage(draft.file); setDraft((old) => old ? { ...old, assetId } : old); }
+        setBusy("Leaving your memory…");
+        const body: NewMemory = { clientId: draft.clientId, type: draft.type, title: draft.title.trim(), body: draft.body.trim(), color: draft.color, x: pending.x, y: pending.y, sceneId: pending.sceneId, ...(draft.type === "link" ? { url: draft.url.trim() } : {}), ...(assetId ? { assetId } : {}), ...(draft.inspiredBy ? { inspiredBy: draft.inspiredBy } : {}), ...(draft.paintOperationId ? { paintOperationId: draft.paintOperationId } : {}) };
+        const result = await api<Memory | { memory: Memory }>("/api/memories", { method: "POST", body: JSON.stringify(body) });
+        const saved = "memory" in result ? result.memory : result;
+        await refresh(); setPending(null); setPanel("inspect"); setSelectedId(saved.id); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false);
+        setAnnouncement(draft.inspiredBy ? "Your memory is here, with a thread back to the original." : "You left something. Someone else now has a place to start.");
+      }
+    } catch (cause) { setFormError(cause instanceof Error ? cause.message : "This didn’t save. Your draft is still here."); }
+    finally { setBusy(""); }
+  }, [pending, world, identity, busy, canWrite, draft, refresh]);
+
+  async function saveEdit() {
+    if (!draft?.editId || busy) return;
+    setBusy("Saving changes…"); setFormError("");
+    try {
+      await api(`/api/memories/${draft.editId}`, { method: "PATCH", body: JSON.stringify({ expectedVersion: draft.expectedVersion, title: draft.title.trim(), body: draft.body.trim(), url: draft.type === "link" ? draft.url.trim() : null, color: draft.color }) });
+      await refresh(); setSelectedId(draft.editId); setPanel("inspect"); setDraft(null); setAnnouncement("Your memory has been updated.");
+    } catch (cause) { setFormError(cause instanceof Error ? cause.message : "These changes didn’t save. Try again."); }
+    finally { setBusy(""); }
+  }
+  async function deleteMemory(memory: Memory) {
+    setBusy("Removing memory…"); setFormError("");
+    try { await api(`/api/memories/${memory.id}`, { method: "DELETE" }); await refresh(); setDeleteConfirm(false); closePanel(); setAnnouncement("Your memory was removed. Contributions that built on it keep their own authors."); }
+    catch (cause) { setFormError(cause instanceof Error ? cause.message : "The memory couldn’t be removed. Try again."); }
+    finally { setBusy(""); }
+  }
+  async function undoPaint() {
+    if (!lastPaint || busy) return;
+    setBusy("Undoing pixels…"); setFormError("");
+    try { await api("/api/paint/undo", { method: "POST", body: JSON.stringify({ operationId: lastPaint }) }); await refresh(); setLastPaint(null); setAnnouncement("Your last paint was undone. Other people’s later changes stay in place."); }
+    catch (cause) { setFormError(cause instanceof Error ? cause.message : "That paint couldn’t be undone."); }
+    finally { setBusy(""); }
+  }
+  const changeQuery = (text: string) => {
+    ++searchSequence.current;
+    setQuery(text); setSearchBusy(false); setSearchData(null); setSearchError("");
+  };
+  const runSearch = async (mode = searchMode, text = query, searchScope = scope) => {
+    const sequence = ++searchSequence.current;
+    setSearchBusy(false); setSearchData(null); setShowAllSources(false);
+    setPanel("search"); setPending(null); setSelectedId(null); setBackToSearch(false); setSearchMode(mode); setQuery(text); setScope(searchScope); setSearchError(""); setAnswerInvalid(false);
+    if (!text.trim()) return;
+    if (connectionRef.current !== "live") { setSearchError("Reconnect to the live world to find current memories. Your question is still here."); return; }
+    setSearchBusy(true);
+    try {
+      const response = await api<SearchResponse | AnswerResponse>(mode === "ask" ? "/api/ask" : "/api/search", { method: "POST", body: JSON.stringify({ query: text.trim(), ...(searchScope === "scene" ? { sceneId: activeScene } : {}) }) });
+      if (sequence !== searchSequence.current) return;
+      if (mode === "ask" && connectionRef.current !== "live") { setSearchError("The connection changed while the box was reading. Reconnect and ask again."); return; }
+      setSearchData(response); void refresh();
+      setAnnouncement(response.results.length ? `Found ${response.results.length} original contributions. Open one to see who left it.` : "No close memories were found. Try another phrase or leave the first one.");
+    } catch (cause) { if (sequence === searchSequence.current) setSearchError(cause instanceof Error ? cause.message : "The box couldn’t finish this search. Try again."); }
+    finally { if (sequence === searchSequence.current) setSearchBusy(false); }
+  };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { if (pending) cancelPlacement(); else { setPanel(null); setSelectedId(null); setBackToSearch(false); } return; }
+      if (event.target instanceof HTMLElement && (event.target.closest("input,textarea,select,[contenteditable=true]"))) return;
+      if (event.key === "/") { event.preventDefault(); searchInput.current?.focus(); return; }
+      if (!pending || busy) return;
+      const steps: Record<string, [number, number]> = { ArrowLeft: [-6, 0], ArrowRight: [6, 0], ArrowUp: [0, -6], ArrowDown: [0, 6] };
+      if (steps[event.key]) { event.preventDefault(); const step = steps[event.key]; updatePosition(pending.x + step[0], pending.y + step[1], false); }
+      else if (event.key === "Enter" && !(event.target instanceof Element && event.target.closest("button"))) { event.preventDefault(); void publish(); }
+    };
+    window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
+  }, [pending, busy, publish, updatePosition, cancelPlacement]);
+
+  const pendingVisual = useMemo<PendingPlacement | null>(() => {
+    if (!pending) return null;
+    if (pending.kind === "paint") return { kind: "paint", x: pending.x, y: pending.y, pixels: shapePixels(pending.shape, pending.color, pending.x, pending.y) };
+    if (!draft) return null;
+    return { kind: "memory", x: pending.x, y: pending.y, memory: { id: "draft", authorId: identity?.id ?? null, authorName: identity?.name ?? "you", type: draft.type, title: draft.title, body: draft.body, url: draft.url || null, imageUrl: draft.previewUrl, color: draft.color, x: pending.x, y: pending.y, sceneId: pending.sceneId, inspiredBy: draft.inspiredBy ?? null, paintOperationId: draft.paintOperationId ?? null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1, indexStatus: "pending", isSeed: false } };
+  }, [pending, draft, identity]);
+
+  const openProfile = () => { setProfileName(identity?.name ?? ""); setPanel("profile"); setFormError(""); setPending(null); };
+  const saveProfile = async (event: FormEvent) => {
+    event.preventDefault(); setBusy("Saving name…"); setFormError("");
+    try {
+      const result = await api<SessionIdentity | { identity?: SessionIdentity }>("/api/profile", { method: "POST", body: JSON.stringify({ name: profileName.trim() }) });
+      const saved = "identity" in result ? result.identity : "id" in result ? result : undefined;
+      setIdentity((old) => saved ?? (old ? { ...old, name: profileName.trim() } : old));
+      await getBrowserSupabase().auth.updateUser({ data: { name: profileName.trim() } });
+      await refresh(); setPanel(null); setAnnouncement(`You’ll leave your next contribution as @${profileName.trim()}.`);
+    } catch (cause) { setFormError(cause instanceof Error ? cause.message : "Your name didn’t save. Try again."); }
+    finally { setBusy(""); }
+  };
+  const report = async (event: FormEvent) => {
+    event.preventDefault(); setBusy("Sending report…"); setFormError("");
+    try { await api("/api/reports", { method: "POST", body: JSON.stringify({ memoryId: reportId, reason: reportReason.trim() }) }); closePanel(); setReportReason(""); setAnnouncement("Report received. Thank you for helping look after this place."); }
+    catch (cause) { setFormError(cause instanceof Error ? cause.message : "Your report didn’t send. Try again."); }
+    finally { setBusy(""); }
+  };
+
+  function renderInspector() {
+    if (!selected) return <div className="empty-state"><Leaf size={28} /><h3>This memory isn’t here anymore.</h3><p>It may have been removed by its author. The rest of the world is still here to explore.</p>{backToSearch ? <button type="button" className="button button-secondary" onClick={() => setPanel("search")}><ArrowLeft size={15} />Back to {searchMode === "ask" ? "answer" : "results"}</button> : null}</div>;
+    const original = world?.memories.find((memory) => memory.id === selected.inspiredBy), descendants = world?.memories.filter((memory) => memory.inspiredBy === selected.id) ?? [];
+    const own = !!identity && selected.authorId === identity.id;
+    return <div className="inspector">
+      {backToSearch ? <button type="button" className="text-button back-link" onClick={() => { setPanel("search"); setSelectedId(null); }}><ArrowLeft size={14} />Back to {searchMode === "ask" ? "answer" : "results"}</button> : null}
+      {justPublished === selected.id ? <p className="success-label"><Check size={14} />On the canvas. A little of you, left here.</p> : null}
+      <div className="original-meta"><span>{selected.type}</span><span>@{selected.authorName}</span>{selected.isSeed ? <span className="seed-label">Starter memory</span> : null}</div>
+      <h3 className="original-title">{selected.title || selected.body.slice(0, 72)}</h3>
+      {original ? <div className="lineage"><span>Built on a memory by @{original.authorName}</span><button type="button" onClick={() => openMemory(original.id, backToSearch)}>{original.title || original.body.slice(0, 48)}<ArrowUpRight size={14} /></button></div> : selected.inspiredBy ? <p className="fine-print">The original that inspired this memory is no longer available.</p> : null}
+      {selected.type === "image" && selected.imageUrl ? <div className="original-image"><img src={selected.imageUrl} alt={selected.title || "A contribution to Memory Box"} /></div> : null}
+      {selected.body ? <div className="original-body">{selected.body}</div> : null}
+      {selected.type === "link" && selected.url ? <a className="original-url" href={selected.url} target="_blank" rel="noopener noreferrer"><Link2 size={15} />{new URL(selected.url).hostname}<ArrowUpRight size={14} /></a> : null}
+      <div className="original-date">Left {relativeDate(selected.createdAt)} · {sceneById(selected.sceneId).title}</div>
+      {selected.isSeed ? <p className="seed-disclosure">A fictional starter memory, placed here to make room for yours.</p> : null}
+      {selected.indexStatus === "pending" ? <p className="index-status"><span className="spinner" />Finding its connections. Your words are already searchable.</p> : selected.indexStatus === "failed" ? <p className="index-status">Your words are searchable. Finding deeper connections will retry.</p> : null}
+      <div className="panel-actions"><button type="button" className="button button-primary" onClick={() => startMemory(selected.id)}><GitBranch size={16} />Build on this</button><button type="button" className="button button-secondary" onClick={() => { void runSearch("find", selected.title || selected.body.slice(0, 70), "all"); }}>Find connections</button></div>
+      {descendants.length ? <div className="descendants"><h4>{descendants.length === 1 ? "A memory grew from this" : `${descendants.length} memories grew from this`}</h4>{descendants.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id, backToSearch)} />)}</div> : <div className="grow-invitation"><GitBranch size={16} /><span>This could be the start of something. Leave a memory of your own beside it.</span></div>}
+      {own ? <div className="owner-actions">
+        <button type="button" className="text-button" onClick={() => {
+          setDraft({ ...newDraft(selected.inspiredBy ?? undefined), editId: selected.id, expectedVersion: selected.version, type: selected.type, title: selected.title, body: selected.body, color: selected.color, url: selected.url ?? "", previewUrl: selected.imageUrl });
+          setPanel("compose"); setFormError("");
+        }}><Pencil size={13} />Edit memory</button>
+        <button type="button" className="text-button danger-text" onClick={() => setDeleteConfirm(true)}><Trash2 size={13} />Remove</button>
+      </div> : <button type="button" className="text-button report-link" onClick={() => { setReportId(selected.id); setReportReason(""); setFormError(""); setPanel("report"); }}><Flag size={12} />Report this memory</button>}
+      {deleteConfirm ? <div className="confirm-box"><strong>Remove your memory?</strong><p>It will leave the canvas and search. Other people’s contributions will stay.</p><div><button type="button" className="button button-danger" disabled={!!busy || !canWrite} onClick={() => void deleteMemory(selected)}>{busy || "Remove memory"}</button><button type="button" className="button button-secondary" onClick={() => setDeleteConfirm(false)}>Keep it</button></div></div> : null}
+      {formError ? <p className="form-error" role="alert">{formError}</p> : null}
+    </div>;
+  }
+
+  function renderSearch() {
+    const searchData = currentSearchData;
+    const answer = isAnswer(searchData) ? searchData : null;
+    const resultIds = searchData?.results.map((result) => result.memory.id) ?? [];
+    const visibleResults = answer && !showAllSources ? searchData!.results.slice(0, 3) : searchData?.results ?? [];
+    const citationCount = answer ? citedSourceCount(answer.claims, world?.memories ?? []) : 0;
+    return <div className="search-panel">
+      <div className="search-settings"><div className="mode-switch"><button type="button" aria-pressed={searchMode === "find"} onClick={() => void runSearch("find")}><Search size={14} />Find</button><button type="button" aria-pressed={searchMode === "ask"} onClick={() => void runSearch("ask")}><MessageCircle size={14} />Ask</button></div><label className="scope-label"><span className="visually-hidden">Search scope</span><select value={scope} onChange={(event) => void runSearch(searchMode, query, event.target.value as "all" | "scene")}><option value="all">Whole box</option><option value="scene">This scene</option></select><ChevronDown size={12} /></label></div>
+      <form className="panel-search-form" onSubmit={(event) => { event.preventDefault(); void runSearch(); }}><label className="visually-hidden" htmlFor="panel-query">{searchMode === "ask" ? "Question for the box" : "Search memories"}</label><textarea id="panel-query" rows={2} value={query} onChange={(event) => changeQuery(event.target.value)} placeholder={searchMode === "ask" ? "What connects these memories?" : "A phrase, a feeling, a half-remembered idea…"} maxLength={400} /><button type="submit" aria-label={searchMode === "ask" ? "Ask the box" : "Find memories"} disabled={searchBusy}><ArrowRight size={18} /></button></form>
+      {searchBusy ? <div className="search-loading"><span className="spinner" /><div><strong>{searchMode === "ask" ? "Reading the box…" : "Finding a few threads…"}</strong><p>{searchMode === "ask" ? "Looking for originals that can answer your question." : "Looking through words, captions, and connections."}</p></div></div> : null}
+      {searchError ? <div className="notice notice-error" role="alert"><p>{searchError}</p><button type="button" className="text-button" onClick={() => void runSearch()}>Try again<ArrowRight size={13} /></button></div> : null}
+      {searchData && !searchBusy ? <>
+        <div className="sources-heading"><h3>{searchData.results.length} original{searchData.results.length === 1 ? "" : "s"}{searchMode === "ask" ? " to read" : " found"}</h3>{searchData.results.length ? <button type="button" className="text-button" onClick={() => cameraTo(searchData.results.map(({ memory }) => ({ ...memory, ...memorySize(memory) })), "frame")}>Show on canvas<ArrowUpRight size={12} /></button> : null}</div>
+        <div className={`search-results${answer ? " source-list" : ""}`}>{visibleResults.map((result, index) => <div key={result.memory.id}><MemoryResult memory={result.memory} index={index} onOpen={() => openMemory(result.memory.id, true)} match={!answer ? searchDataRef.current?.results.find((snapshot) => snapshot.memory.id === result.memory.id)?.memory.version !== result.memory.version ? "Updated since this search" : result.match === "semantic" ? "Connected by meaning" : result.match === "both" ? "Words + meaning" : "Matched your words" : undefined} />{!answer ? <p className="search-excerpt">{result.memory.body.slice(0, 190)}{result.memory.body.length > 190 ? "…" : ""}</p> : null}</div>)}</div>
+        {answer && searchData.results.length > 3 ? <button type="button" className="text-button source-expander" aria-expanded={showAllSources} onClick={() => setShowAllSources(!showAllSources)}>{showAllSources ? "Show fewer originals" : `Show all ${searchData.results.length} originals`}<ChevronDown size={13} /></button> : null}
+        {answer ? effectiveAnswerInvalid || connection !== "live" ? <div className="answer-box stale-answer"><WifiOff size={17} /><h3>{effectiveAnswerInvalid ? "One of these memories changed." : "This answer needs a fresh look."}</h3><p>{effectiveAnswerInvalid ? "Read the current originals, or ask again to make a new connection." : "Reconnect before reading a generated answer. Your question is still here."}</p><button type="button" className="text-button" onClick={() => void runSearch("ask")}>Ask again<ArrowRight size={13} /></button></div> : answer.status === "answered" ? <div className="answer-box"><div className="answer-label"><Sparkles size={14} />Based on {citationCount} contribution{citationCount === 1 ? "" : "s"}</div>{answer.claims.map((claim, index) => <p key={index}>{claim.text} {claim.sourceIds.filter((id) => resultIds.includes(id)).map((id) => <button type="button" key={id} className="citation" aria-label={`Open source ${resultIds.indexOf(id) + 1}`} onClick={() => openMemory(id, true)}>{resultIds.indexOf(id) + 1}</button>)}</p>)}{answer.summary ? <p className="answer-summary">{answer.summary}</p> : null}<span className="answer-footnote">An interpretation of these memories. The originals are always one click away.</span></div> : <div className="answer-box"><CircleHelp size={20} /><h3>{answer.status === "insufficient" ? "The box doesn’t have enough here yet." : "The box couldn’t finish this answer."}</h3><p>{answer.summary || "Try a smaller question, browse the originals, or leave the first memory about it."}</p></div> : null}
+        {!searchData.results.length && !answer ? <div className="empty-state compact"><Search size={25} /><h3>No close memories yet.</h3><p>Try a different phrase or leave the first contribution about it.</p></div> : null}
+        {searchData.notice ? <p className="search-notice">{searchData.notice}</p> : null}
+      </> : null}
+      {!searchBusy && !searchData && !searchError ? <div className="search-invitation"><span className="eyebrow">FOLLOW A THREAD</span><h3>{searchMode === "ask" ? "A whole box of little connections." : "Find a feeling someone left behind."}</h3><p>{searchMode === "ask" ? "Ask a question. The box will bring back the memories behind its answer." : "You don’t need the exact words. Try a person, a place, a feeling, or an idea."}</p></div> : null}
+      {!searchBusy ? <div className="search-suggestions"><span>Try a thread</span>{(searchMode === "ask" ? ["What have people shared about music and family?", "What ideas could we grow together?"] : ["childhood car rides", "a quiet place to sit", "unfinished ideas"]).map((text) => <button type="button" key={text} onClick={() => void runSearch(searchMode, text, "all")}>{text}<ArrowUpRight size={13} /></button>)}</div> : null}
+    </div>;
+  }
+
+  function renderPanel() {
+    if (!world) return null;
+    if (panel === "compose" && draft) return <MemoryComposer draft={draft} onChange={setDraft} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => openMemory(id)} onPreview={previewMemory} busy={busy} error={formError} />;
+    if (panel === "inspect") return renderInspector();
+    if (panel === "search") return renderSearch();
+    if (panel === "paint") return <div className="paint-panel"><span className="eyebrow">SHARED PIXELS · {active.title}</span><h3 className="panel-lead">Leave it a little different.</h3><p className="panel-copy">A small shape can give the next person a place to start. These pixels can be repainted and carried further by anyone.</p><div className="shape-grid">{(Object.keys(SHAPES) as ShapeId[]).map((key) => <button type="button" key={key} aria-pressed={shape === key} onClick={() => setShape(key)}><PixelShape shape={key} color={paintColor} /><span>{SHAPES[key].name}</span></button>)}</div><div className="paint-palette"><span className="eyebrow">A LITTLE COLOR</span><div>{PAINT_COLORS.map((color) => <button type="button" className="color-swatch" style={{ background: color.value }} key={color.value} aria-label={color.name} aria-pressed={paintColor === color.value} onClick={() => setPaintColor(color.value)} />)}</div></div><button type="button" className="button button-primary button-full" onClick={startPaintPlacement} disabled={world.paintingPaused}>Choose its place<ArrowRight size={16} /></button>{world.paintingPaused ? <p className="form-error">Painting is paused for a moment. Memories are still open.</p> : null}{lastPaint ? <button type="button" className="text-button undo-link" disabled={!!busy || !canWrite} onClick={() => void undoPaint()}><Undo2 size={14} />Undo my last paint</button> : null}<p className="fine-print">Your memory stays yours, even when the pixels around it change.</p>{formError ? <p className="form-error" role="alert">{formError}</p> : null}</div>;
+    if (panel === "scene") { const memories = world.memories.filter((memory) => memory.sceneId === activeScene); return <div><span className="eyebrow">{active.title}</span><h3 className="panel-lead">{activeScene === "mixtape" ? "A cassette is becoming a room." : activeScene === "pond" ? "A small place to be together." : "Something might grow here."}</h3><p className="panel-copy">{active.invitation}</p><div className="panel-actions"><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={15} />Help build</button><button type="button" className="button button-secondary" onClick={() => startMemory(undefined, lastPaint ?? undefined)}><Plus size={15} />Leave a memory</button></div>{lastPaint ? <div className="saved-paint"><CheckCheck size={18} /><div><strong>You changed the picture.</strong><p>Leave the thought behind it, or see what someone does next.</p><button type="button" className="text-button" onClick={() => startMemory(undefined, lastPaint)}>Attach a memory<ArrowRight size={13} /></button></div></div> : null}<button type="button" className="text-button scene-ask" onClick={() => void runSearch("ask", `What connects the memories in ${active.title}?`, "scene")}><MessageCircle size={14} />Ask about this scene<ArrowUpRight size={13} /></button><div className="section-label">{memories.length} MEMORIES IN THIS SCENE</div>{memories.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</div>; }
+    if (panel === "browse") return <div><p className="panel-copy">Every original, with a person and a place behind it.</p><label className="field field-inline">Show<select value={scope} onChange={(event) => setScope(event.target.value as "all" | "scene")}><option value="all">Whole box</option><option value="scene">{active.title}</option></select></label>{world.memories.filter((memory) => scope === "all" || memory.sceneId === activeScene).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}{!world.memories.length ? <div className="empty-state"><Leaf size={26} /><h3>The first memory is still unwritten.</h3><button type="button" className="button button-primary" onClick={() => startMemory()}>Leave something<Plus size={15} /></button></div> : null}</div>;
+    if (panel === "activity") return <div><p className="panel-copy">The picture keeps a little history of the people who change it.</p><div className="activity-list">{world.events.map((event) => <div className="activity-event" key={event.id}><span className="activity-dot" /><div><strong>@{event.authorName}</strong><p>{event.description}</p><span>{relativeDate(event.createdAt)}{event.isSeed ? " · starter history" : ""}</span>{event.memoryId ? <button type="button" className="text-button" onClick={() => openMemory(event.memoryId!)}>See the memory<ArrowUpRight size={12} /></button> : null}</div></div>)}</div>{!world.events.length ? <p className="panel-copy">No contributions yet. The first mark is yours to make.</p> : null}</div>;
+    if (panel === "profile") return <form className="profile-form" onSubmit={saveProfile}><div className="profile-avatar"><UserRound size={28} /></div><h3 className="panel-lead">People leave the best part.</h3><p className="panel-copy">Choose the name people will see beside your memories and little additions.</p><label className="field">Your name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} minLength={2} maxLength={24} required autoComplete="nickname" placeholder="What should we call you?" /></label><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Save my name"}<ArrowRight size={15} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}<p className="fine-print">You’re a guest in this browser. Keep its browser data to return to your contributions and edit them later.</p><div className="section-label">YOUR MEMORIES</div>{world.memories.filter((memory) => memory.authorId === identity?.id).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</form>;
+    if (panel === "report") return <form onSubmit={report}><Flag size={24} className="report-icon" /><h3 className="panel-lead">Help look after this place.</h3><p className="panel-copy">Tell us what needs attention. The contribution will stay in place until it’s reviewed.</p><label className="field">What should we know?<textarea rows={5} value={reportReason} onChange={(event) => setReportReason(event.target.value)} minLength={5} maxLength={500} required placeholder="A short explanation…" /></label><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Send report"}<Send size={15} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}</form>;
+    return null;
+  }
+
+  const seedCount = world?.memories.filter((memory) => memory.isSeed).length ?? 0, contributionCount = (world?.memories.length ?? 0) - seedCount;
+  return <main className="memory-box-app">
+    <header className="app-header">
+      <button type="button" className="wordmark" aria-label="Memory Box, see the whole commons" disabled={!!busy} onClick={() => { closePanel(); setCommand((old) => ({ key: old.key + 1, type: "fit" })); }}><span className="brand-mark" aria-hidden="true">m</span>memorybox<span className="brand-dot">.</span></button>
+      <form className="header-search" onSubmit={(event) => { event.preventDefault(); void runSearch(); }}>
+        <Search size={17} />
+        <input ref={searchInput} aria-label="Find a memory or ask the box" value={query} disabled={!!busy} onChange={(event) => changeQuery(event.target.value)} onFocus={() => { if (panel !== "search") { keepInputFocus.current = true; setPanel("search"); setPending(null); setSelectedId(null); } }} maxLength={400} placeholder="Find a memory, or ask the box…" />
+        <button type="submit" aria-label="Search or ask" disabled={!!busy}><ArrowRight size={18} /></button><kbd>/</kbd>
+      </form>
+      <button type="button" className="button button-primary leave-button" aria-label="Leave something" onClick={() => draft ? (setPanel("compose"), setPending(null)) : startMemory()} disabled={!world || !!busy}><Plus size={17} /><span>Leave something</span></button>
+      <button type="button" className="profile-button" aria-label={`Your profile, ${identity?.name ?? "guest"}`} onClick={openProfile} disabled={!identity || !!busy}><UserRound size={18} /></button>
+    </header>
+    <div className="world-topbar"><div className="world-name"><span className="commons-symbol" aria-hidden="true">✳</span><div><h1>The commons</h1><p>A little world we leave together.</p></div></div><div className="world-top-actions"><button type="button" className="text-button" onClick={() => { setPanel("activity"); setPending(null); setSelectedId(null); }} disabled={!world}>How it’s growing<ArrowUpRight size={13} /></button><div className={`connection-state ${connection}`}><span />{connection === "live" ? "Live" : connection === "connecting" ? "Connecting" : connection === "reconnecting" ? "Reconnecting" : connection === "offline" ? "Offline" : "Connection paused"}</div></div></div>
+    {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
+    {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
+    <div className={`app-workspace${panel ? " has-panel" : ""}`}>
+      {world ? <div className="world-column"><WorldCanvas world={world} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onScene={showScene} onOpen={(id) => openMemory(id, panel === "search" || backToSearch)} onPosition={updatePosition}>
+        {!panel && !pending ? <div className="scene-invitation canvas-overlay"><span className="eyebrow">AN OPEN INVITATION</span><h2>{active.title}</h2><p>{active.invitation}</p><div><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={14} />Help build</button><button type="button" className="text-button" onClick={() => showScene(activeScene)}>Explore memories<ArrowRight size={12} /></button></div></div> : null}
+        {pending ? <div className="placement-bar canvas-overlay"><div><span className="eyebrow">{pending.kind === "paint" ? "SHARED PIXELS" : "A MEMORY BY YOU"}</span><strong>{pending.kind === "paint" ? "Make it part of the picture." : "Leave it a little home."}</strong><p>Tap to move · arrow keys to nudge</p></div><button type="button" className="button button-primary" onClick={() => void publish()} disabled={!!busy || !canWrite}>{busy ? <><span className="spinner" />{busy}</> : pending.kind === "paint" ? <>Paint here<Check size={15} /></> : <>Leave it here<Check size={15} /></>}</button><button type="button" className="icon-button" aria-label="Cancel placement" onClick={cancelPlacement} disabled={!!busy}><X size={17} /></button>{formError ? <p className="placement-error" role="alert">{formError}</p> : null}</div> : null}
+        {!pending ? <div className="canvas-dock canvas-overlay"><button type="button" aria-label="Paint" aria-pressed={panel === "paint"} onClick={showPaint}><Paintbrush size={17} /><span>Paint</span></button><button type="button" aria-label="Leave" aria-pressed={panel === "compose"} onClick={() => startMemory()}><Plus size={18} /><span>Leave</span></button><span /><button type="button" aria-label="Browse" aria-pressed={panel === "browse"} onClick={() => { setPanel("browse"); setSelectedId(null); setBackToSearch(false); }}><List size={18} /><span>Browse</span></button></div> : null}
+      </WorldCanvas><div className="world-bottomline"><div className="scene-shortcuts">{SCENES.map((scene) => <button type="button" key={scene.id} aria-pressed={activeScene === scene.id} onClick={() => showScene(scene.id)}><span className={`scene-dot ${scene.id}`} />{scene.title}</button>)}</div><span className="world-revision">rev {world.revision.toLocaleString()}</span></div></div> : <div className="world-loading"><div className="loading-mark"><PixelShape shape={worldError ? "sprout" : "star"} color="#354FB2" /></div><span className="eyebrow">MEMORY BOX</span><h2>{worldError ? "The commons is taking a moment." : "Opening the commons…"}</h2><p>{worldError || "A shared picture. A collection of little lives. A place for yours."}</p>{worldError ? <button type="button" className="button button-primary" onClick={retry}>Try again<ArrowRight size={16} /></button> : <span className="spinner" />}</div>}
+      {panel && world ? <aside className={`context-panel panel-${panel}${panelExpanded ? " panel-expanded" : ""}`} aria-label={panelTitle}>
+        <div className="panel-mobile-handle" />
+        <div className="panel-header">
+          <h2 ref={panelHeading} tabIndex={-1}>{panelTitle}</h2>
+          {panel === "inspect" ? <button type="button" className="icon-button panel-expand" aria-label={panelExpanded ? "Collapse panel" : "Expand panel"} onClick={() => setPanelExpanded(!panelExpanded)}>{panelExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
+          <button type="button" className="icon-button" aria-label="Close panel" onClick={closePanel}><X size={18} /></button>
+        </div>
+        <div className="panel-content">{renderPanel()}</div>
+      </aside> : null}
+    </div>
+    <footer className="app-footer"><div className="community-count">{world ? <><span>{contributionCount} community {contributionCount === 1 ? "memory" : "memories"}</span>{seedCount ? <span>· {seedCount} starter examples</span> : null}</> : <span>Everyone can leave something.</span>}</div><span className="footer-signature">Made of small things.</span></footer>
+    <div className="app-announcement" role="status" aria-live="polite">{announcement}</div>
+  </main>;
+}
