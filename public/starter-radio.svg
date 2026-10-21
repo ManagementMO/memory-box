@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 300" fill="none" shape-rendering="crispEdges" role="img" aria-label="A pastel cassette radio with an unfinished right speaker">
+  <!-- All paintable detail uses a five-unit grid. Outer area stays transparent. -->
+  <g id="radio-flat-shadows" fill="#E8E7F1">
+    <path d="M105 225h205v5H105zM115 230h185v5H115zM35 220h50v5H35zM335 220h50v5h-50z"/>
+  </g>
+  <g id="radio-handle">
+    <path fill="#2D2D3A" d="M140 60h130v5h10v10h5v25h-15V80H140v20h-15V75h5V65h10z"/>
+    <path fill="#B9C6EC" d="M140 65h130v5h5v5h5v25h-5V80h-5v-5H140v5h-5v20h-5V75h5V70h5z"/>
+    <path fill="#E1E7FC" d="M140 65h130v5H140zM130 80h5v15h-5z"/>
+  </g>
+  <g id="radio-body">
+    <path fill="#2D2D3A" d="M110 90h190v5h15v10h5v105h-5v10h-15v5H110v-5H95v-10h-5V105h5V95h15z"/>
+    <path fill="#C9BDEC" d="M110 95h190v5h10v10h5v95h-5v10h-10v5H110v-5h-10v-10h-5v-95h5v-10h10z"/>
+    <path fill="#E4DCF7" d="M110 100h190v5H110zM100 110h5v80h-5z"/>
+    <path fill="#ABA1CF" d="M105 205h10v5h180v-5h15v5h-10v5H110v-5h-5z"/>
+    <rect x="110" y="225" width="25" height="5" fill="#2D2D3A"/>
+    <rect x="275" y="225" width="25" height="5" fill="#2D2D3A"/>
+  </g>
+  <g id="radio-tuner">
+    <path fill="#2D2D3A" d="M115 110h180v20H115z"/>
+    <rect x="120" y="115" width="170" height="10" fill="#FFF0AF"/>
+    <path fill="#D9C985" d="M130 115h5v5h-5zM150 115h5v5h-5zM170 115h5v5h-5zM190 115h5v5h-5zM210 115h5v5h-5zM230 115h5v5h-5zM250 115h5v5h-5zM270 115h5v5h-5z"/>
+    <rect x="245" y="115" width="5" height="10" fill="#E1A4BA"/>
+    <rect x="120" y="125" width="170" height="5" fill="#EFEAF9"/>
+  </g>
+  <g id="radio-cassette-window">
+    <path fill="#2D2D3A" d="M120 140h170v5h5v40h-5v5H120v-5h-5v-40h5z"/>
+    <path fill="#FFF3BA" d="M125 145h160v5h5v30h-5v5H125v-5h-5v-30h5z"/>
+    <rect x="125" y="150" width="160" height="5" fill="#E7B7CB"/>
+    <path fill="#2D2D3A" d="M130 155h150v5h5v15h-5v5H130v-5h-5v-15h5z"/>
+    <rect x="135" y="160" width="140" height="15" fill="#A4B8D6"/>
+    <rect x="165" y="160" width="75" height="5" fill="#6C7393"/>
+    <rect x="165" y="170" width="75" height="5" fill="#6C7393"/>
+    <rect x="175" y="165" width="55" height="5" fill="#FAFBFF"/>
+  </g>
+  <g id="radio-reels">
+    <path fill="#FAFBFF" d="M140 150h15v5h5v25h-5v5h-15v-5h-5v-25h5zM250 150h15v5h5v25h-5v5h-15v-5h-5v-25h5z"/>
+    <path fill="#DDE2F0" d="M140 175h5v5h10v5h-15zM250 175h5v5h10v5h-15z"/>
+    <path fill="#2D2D3A" d="M145 160h5v5h5v5h-5v5h-5v-5h-5v-5h5zM255 160h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/>
+  </g>
+  <g id="radio-controls">
+    <path fill="#2D2D3A" d="M155 195h100v5h5v10H150v-10h5z"/>
+    <path fill="#99ACD3" d="M160 200h90v5h5v5H155v-5h5z"/>
+    <rect x="170" y="200" width="5" height="10" fill="#2D2D3A"/>
+    <rect x="235" y="200" width="5" height="10" fill="#2D2D3A"/>
+    <rect x="185" y="205" width="40" height="5" fill="#E5EBFA"/>
+    <rect x="110" y="195" width="20" height="15" fill="#E1E7FC"/>
+    <rect x="115" y="195" width="10" height="15" fill="#596EB5"/>
+    <rect x="280" y="195" width="20" height="15" fill="#E1E7FC"/>
+    <rect x="285" y="195" width="10" height="15" fill="#596EB5"/>
+    <rect x="105" y="110" width="5" height="5" fill="#FAFBFF"/>
+    <rect x="300" y="110" width="5" height="5" fill="#FAFBFF"/>
+    <rect x="105" y="200" width="5" height="5" fill="#FAFBFF"/>
+    <rect x="300" y="200" width="5" height="5" fill="#FAFBFF"/>
+  </g>
+  <g id="left-speaker">
+    <path fill="#2D2D3A" d="M30 130h55v90H30z"/>
+    <rect x="35" y="135" width="45" height="80" fill="#AABCE4"/>
+    <path fill="#DCE5FF" d="M35 135h45v5H35zM35 140h5v70h-5z"/>
+    <rect x="40" y="145" width="35" height="35" fill="#2D2D3A"/>
+    <path fill="#FAFBFF" d="M50 150h15v5h5v15h-5v5H50v-5h-5v-15h5z"/>
+    <rect x="50" y="155" width="15" height="15" fill="#697CB6"/>
+    <rect x="55" y="160" width="5" height="5" fill="#FAFBFF"/>
+    <rect x="45" y="190" width="25" height="20" fill="#2D2D3A"/>
+    <rect x="50" y="195" width="15" height="10" fill="#FAFBFF"/>
+    <rect x="55" y="195" width="5" height="10" fill="#6D82CD"/>
+  </g>
+  <g id="speaker-cables" fill="#9DA7C2">
+    <path d="M85 190h5v5h-5zM320 190h10v5h-10z"/>
+  </g>
+  <!-- Root demo may overlay committed/user and second-person pixels in this exact box. -->
+  <g id="right-speaker-guide" data-paint-target="right-speaker" data-bounds="330 130 60 90" fill="#E0E5F3">
+    <path d="M330 130h15v5h-15zM350 130h15v5h-15zM370 130h20v5h-20zM330 140h5v15h-5zM330 160h5v15h-5zM330 180h5v15h-5zM330 200h5v20h-5zM385 140h5v15h-5zM385 160h5v15h-5zM385 180h5v15h-5zM385 200h5v20h-5zM340 215h15v5h-15zM360 215h15v5h-15zM380 215h5v5h-5z"/>
+    <path fill="#EDF0FA" d="M340 145h10v5h-10zM355 145h10v5h-10zM370 145h10v5h-10zM340 155h5v10h-5zM375 155h5v10h-5zM340 170h10v5h-10zM355 175h10v5h-10zM370 170h10v5h-10zM345 190h10v5h-10zM360 190h10v5h-10zM375 190h5v15h-5zM345 205h10v5h-10zM360 205h10v5h-10z"/>
+  </g>
+  <g id="right-speaker-existing-pixels">
+    <rect x="330" y="130" width="15" height="5" fill="#2D2D3A"/>
+    <rect x="330" y="135" width="5" height="20" fill="#2D2D3A"/>
+    <rect x="335" y="135" width="5" height="15" fill="#AABCE4"/>
+    <rect x="340" y="135" width="5" height="5" fill="#DCE5FF"/>
+  </g>
+  <g id="pixel-star">
+    <path fill="#F7DF8D" d="M65 50h5v10h10v5h-5v5h-5v10h-5V70h-5v-5h-5v-5h10z"/>
+    <rect x="65" y="60" width="5" height="5" fill="#FFF3BA"/>
+  </g>
+  <g id="small-star" fill="#B9C8F8">
+    <path d="M350 70h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/>
+  </g>
+  <g id="pixel-flower">
+    <path fill="#92A0C8" d="M330 245h5v25h-5zM320 250h5v5h5v5h-5v-5h-5zM335 255h5v-5h10v5h-5v5h-10z"/>
+    <path fill="#F1C4D6" d="M325 225h15v5h5v15h-5v5h-15v-5h-5v-15h5z"/>
+    <path fill="#E4ABC1" d="M320 240h5v5h10v5h-10v-5h-5z"/>
+    <rect x="325" y="230" width="10" height="10" fill="#FFF0AF"/>
+    <rect x="330" y="230" width="5" height="5" fill="#FAFBFF"/>
+    <rect x="320" y="270" width="25" height="5" fill="#E8E7F1"/>
+  </g>
+  <g id="tiny-pixel-sparks" fill="#E8DDF7">
+    <rect x="105" y="55" width="5" height="5"/>
+    <rect x="305" y="65" width="5" height="5"/>
+    <rect x="55" y="240" width="5" height="5"/>
+  </g>
+</svg>

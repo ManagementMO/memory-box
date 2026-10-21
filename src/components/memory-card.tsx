@@ -10,9 +10,10 @@ export function MemoryCard({ memory, selected, number, dimmed, parentName, onOpe
   const angle = ((memory.id.charCodeAt(memory.id.length - 1) || 0) % 5) - 2;
   const style = { left: memory.x, top: memory.y, width: size.width, height: size.height, "--paper": memory.color, "--tilt": `${angle}deg` } as CSSProperties;
   const content = <>
-    {memory.type === "image" ? <span className="memory-photo"><img src={memory.imageUrl ?? ""} alt={memory.title || "Uploaded memory"} draggable={false} /><span>{memory.title || "A little keepsake"}</span></span>
+    <span className="memory-pin" aria-hidden="true">{memory.type === "image" ? <ImageIcon size={13} /> : memory.type === "link" ? <Link2 size={13} /> : <Quote size={13} />}</span>
+    {memory.type === "image" ? <span className="memory-photo"><img src={memory.imageUrl ?? ""} alt={memory.title || "Uploaded memory"} draggable={false} /><span><strong className="memory-photo-title">{memory.title || "A little keepsake"}</strong><small className="memory-photo-author">@{memory.authorName}</small></span></span>
       : memory.type === "link" ? <span className="memory-link"><Link2 size={16} /><strong>{memory.title || memory.body}</strong><span>@{memory.authorName}</span></span>
-        : <span className="memory-paper"><span className="memory-paper-copy">{memory.body || memory.title}</span><span className="memory-author">@{memory.authorName}</span></span>}
+        : <span className="memory-paper"><span className="memory-compact-title">{memory.title || memory.body.slice(0, 70)}</span><span className="memory-paper-copy">{memory.body || memory.title}</span><span className="memory-author">@{memory.authorName}</span></span>}
     {parentName ? <span className="memory-thread-tab">↳ from @{parentName}</span> : null}
     {number ? <span className="memory-number">{number}</span> : null}
   </>;
@@ -21,7 +22,7 @@ export function MemoryCard({ memory, selected, number, dimmed, parentName, onOpe
 }
 
 export function MemoryResult({ memory, index, onOpen, match }: { memory: Memory; index?: number; onOpen: () => void; match?: string }) {
-  return <button type="button" className="memory-result" onClick={onOpen}>
+  return <button type="button" className="memory-result" data-source-id={memory.id} onClick={onOpen}>
     <span className="result-thumb" style={{ background: memory.type === "text" ? memory.color : undefined }}>
       {memory.type === "image" && memory.imageUrl ? <img src={memory.imageUrl} alt="" /> : memory.type === "image" ? <ImageIcon size={18} /> : memory.type === "link" ? <Link2 size={18} /> : <Quote size={18} />}
     </span>

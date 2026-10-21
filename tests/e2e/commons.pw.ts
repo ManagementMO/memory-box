@@ -52,6 +52,7 @@ test("clearing a question rejects a late answer response", async ({ page }) => {
   const input = page.getByRole("textbox", { name: "Find a memory or ask the box", exact: true });
   await input.fill("A question cleared before completion");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await page.getByRole("button", { name: "Ask the box", exact: true }).click();
   await requested;
   await expect(page.locator(".search-loading")).toBeVisible();
   await input.fill("");
