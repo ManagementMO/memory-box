@@ -186,7 +186,13 @@ class Demo {
   private async showAnswer(page: Page) {
     await panel(page).evaluate(element => { element.scrollTop = 0; });
     if (this.ledger.mode === "mobile") await page.locator(".answer-box").evaluate(element => element.scrollIntoView({ block: "start", behavior: "instant" }));
-    else await page.locator(".answer-box").scrollIntoViewIfNeeded();
+    else {
+      await panel(page).evaluate(element => {
+        const answer = element.querySelector(".answer-box");
+        if (answer) element.scrollTo({ top: Math.max(0, answer.getBoundingClientRect().top - element.getBoundingClientRect().top + element.scrollTop - 12), behavior: "instant" });
+      });
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    }
   }
   private async focusCanvas(page: Page, x: number, y: number, z: number) {
     await this.pause(400);

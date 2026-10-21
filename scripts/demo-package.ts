@@ -76,6 +76,8 @@ async function main() {
   const modes = { desktop: await packageMode(resolve(desktop), "desktop"), ...(mobile ? { mobile: await packageMode(resolve(mobile), "mobile") } : {}) };
   const manifest = { status: mobile ? "ready" : "desktop-preview", title: "Memory Box — two people, one world", recordedAt: new Date().toISOString(),
     provenance: { actors: "Two independent automated guest sessions in each recording, controlled by the builder. These are not footage of two human participants.",
+      capture: `Desktop: ${modes.desktop.origin}, recorded in Chromium. ${modes.mobile ? `Mobile: ${modes.mobile.origin}, recorded with Chromium mobile emulation and actual touch input; this is not footage of a physical phone.` : "The mobile recording is not packaged yet."}`,
+      answer: "Ask uses a model to select cited source passages and recorded connections. Application code validates exact quoted text and constructs author attribution and parent relationships from the current stored originals.",
       image: "An original generated still-life demo image; each contributed family story is explicitly fictional.",
       backend: "Actual application UI, Supabase Auth/Storage/Postgres/Realtime, real hybrid retrieval and one provider-backed Ask per device recording. No application-response stubs or fake presence.",
       video: "Continuous actual browser recordings, trimmed only at the common story start/end and transcoded to MP4. Idle/provider wait time is retained. Both panes share one timeline.",
