@@ -1,0 +1,11 @@
+# Ask with original words and recorded connections
+
+A real mobile demo on 21 October exposed a semantic failure that citation membership did not catch. Maya's saved reply built on Leo's photo, but a generated sentence attributed it to a similar starter story by Nina. Both cited IDs were real retrieved sources. The database graph, returned source metadata, upload/build-on flows and teardown were correct; unrestricted model prose introduced the false relationship.
+
+Keep the public answer shape and source-reader experience. Change the internal provider output to selections: an excerpt has a source ID, body or image-description field, and exact contiguous quotation; a lineage selection has only a child ID. Only children with a parent in the current bounded retrieved context are eligible. The model never supplies a parent identity, attribution sentence or free factual prose.
+
+Application code verifies every excerpt against the exact supplied field, labels machine-derived descriptions separately, and constructs attribution from the original. It resolves each selected child's actual inspiredBy value and constructs the relationship and both citations. Unknown fields, altered quotations, extra parent/text fields and absent/out-of-scope parents fail closed. The insufficient-evidence label is also application-authored. Existing post-call source version/visibility checks continue to withhold changed sources and answers.
+
+This is a deliberate product tradeoff: Ask curates a reading of the box through original words and recorded connections. It no longer publishes free paraphrase. This boundary proves excerpt/source fidelity and recorded lineage; it does not prove selection relevance, completeness of surrounding context, the truth of a contributor's recollection or the accuracy of a machine image description. Find retains hybrid word/meaning retrieval.
+
+Regression fixtures contain competing Maya/Leo and Nina/Lee chains. The captured legacy false sentence must fail, selecting Maya's reply must derive Leo's actual parent, and missing/changed/out-of-eight parents and altered/cross-field quotations must be handled correctly. The SDK-facing schema must also expose only eligible child IDs with no model-supplied parent/prose fields. Final proof includes fresh production recordings on both devices, with exact cleanup and no hidden generation retry.

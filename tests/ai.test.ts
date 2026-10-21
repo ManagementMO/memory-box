@@ -45,6 +45,20 @@ function generated(output: unknown) {
   vi.mocked(generateText).mockResolvedValue({ output } as never);
 }
 
+const excerpt = (sourceId = "memory-one", exactQuote = "My dad sang in the car.", field: "body" | "imageDescription" = "body") => ({
+  kind: "excerpt", sourceId, field, exactQuote,
+});
+
+function competingChains(): Memory[] {
+  return [
+    { ...memory("maya-root", "Dad kept a small radio on the kitchen shelf."), authorName: "Maya-demo", title: "Sunday radio corner" },
+    { ...memory("maya-reply", "Let us make a tiny breakfast radio club."), authorName: "Maya-demo", title: "A tiny breakfast radio club", inspiredBy: "leo-photo" },
+    { ...memory("lee-photo", "Nina's story reminded me of Sunday pancakes."), authorName: "Lee", title: "Sunday, side A", type: "image", inspiredBy: "nina-root" },
+    { ...memory("leo-photo", "Maya's radio corner reminded me of pancakes with Mum."), authorName: "Leo-demo", title: "Side A smells like pancakes", type: "image", inspiredBy: "maya-root" },
+    { ...memory("nina-root", "My dad always sang the wrong words on the drive home."), authorName: "Nina", title: "The long way home" },
+  ];
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
@@ -152,30 +166,151 @@ describe("grounded answers", () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
-  it("keeps validated claims and derives a scope label from actual cited originals", async () => {
+  it("publishes exact selected evidence with application attribution and derives its scope from actual cited originals", async () => {
     generated({
       status: "answered",
-      claims: [{ text: "Nina remembers her dad singing in the car.", sourceIds: ["memory-one", "memory-one"] }],
+      claims: [excerpt()],
       summary: "This is an unverified, uncited factual conclusion that must not be displayed.",
     });
-    await expect(synthesizeAnswer("What does music remind people of?", [memory()])).resolves.toEqual({
+    const answer = await synthesizeAnswer("What does music remind people of?", [memory()]);
+    expect(answer).toMatchObject({
       status: "answered",
-      claims: [{ text: "Nina remembers her dad singing in the car.", sourceIds: ["memory-one"] }],
+      claims: [{ sourceIds: ["memory-one"] }],
       summary: "Based on 1 cited contribution.",
     });
+    expect(answer.claims[0].text).toContain("My dad sang in the car.");
+    expect(answer.claims[0].text).toContain("Nina");
+    expect(answer.claims[0].text).not.toContain("unverified");
   });
 
   it.each([
-    { status: "answered", claims: [{ text: "A fact.", sourceIds: ["invented-id"] }], summary: "" },
-    { status: "answered", claims: [{ text: "A fact.", sourceIds: [] }], summary: "" },
+    { status: "answered", claims: [excerpt("invented-id")], summary: "" },
     { status: "answered", claims: [], summary: "" },
-    { status: "insufficient", claims: [{ text: "A fact.", sourceIds: ["memory-one"] }], summary: "No evidence." },
-    { status: "answered", claims: [{ text: " ", sourceIds: ["memory-one"] }], summary: "" },
+    { status: "insufficient", claims: [excerpt()], summary: "No evidence." },
+    { status: "answered", claims: [excerpt("memory-one", " ")], summary: "" },
+    { status: "answered", claims: [{ kind: "excerpt", sourceId: "memory-one", field: "title", exactQuote: "The long way home" }], summary: "" },
   ])("rejects contradictory or unsupported structured output: %o", async (output) => {
     generated(output);
     await expect(synthesizeAnswer("What do they remember?", [memory()])).rejects.toMatchObject({
       code: "invalid_response", retryable: false,
     });
+  });
+
+  it("resolves the selected reply to Leo's exact parent even when Nina's similar chain is also retrieved", async () => {
+    generated({ status: "answered", claims: [{ kind: "lineage", childId: "maya-reply" }], summary: "" });
+    const answer = await synthesizeAnswer("How did the Sunday radio corner grow?", competingChains());
+    expect(answer.status).toBe("answered");
+    expect(answer.claims).toHaveLength(1);
+    expect(answer.claims[0].sourceIds).toEqual(["maya-reply", "leo-photo"]);
+    expect(answer.claims[0].text).toContain("Maya-demo");
+    expect(answer.claims[0].text).toContain("A tiny breakfast radio club");
+    expect(answer.claims[0].text).toContain("Leo-demo");
+    expect(answer.claims[0].text).toContain("Side A smells like pancakes");
+    expect(answer.claims[0].text).not.toContain("Nina");
+    expect(answer.claims[0].text).not.toContain("Sunday, side A");
+    expect(answer.summary).toBe("Based on 2 cited contributions.");
+  });
+
+  it.each([
+    { kind: "lineage", childId: "maya-reply", parentId: "nina-root" },
+    { kind: "lineage", childId: "maya-reply", text: "Maya's reply was inspired by Nina's story." },
+    { text: "Maya's reply was inspired by Nina's story.", sourceIds: ["maya-reply", "nina-root"] },
+    { ...excerpt("maya-reply", "Let us make a tiny breakfast radio club."), text: "Maya built on Nina." },
+  ])("rejects model-supplied parent identities or arbitrary prose even when all cited IDs are real: %o", async (selection) => {
+    generated({ status: "answered", claims: [selection], summary: "" });
+    await expect(synthesizeAnswer("How did it grow?", competingChains())).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("does not select a lineage whose parent is missing from the supplied current sources", async () => {
+    const reply = competingChains().find(source => source.id === "maya-reply")!;
+    generated({ status: "answered", claims: [{ kind: "lineage", childId: reply.id }], summary: "" });
+    await expect(synthesizeAnswer("Who did Maya build on?", [reply])).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("does not let a source beyond the eight-source boundary authorize a lineage", async () => {
+    const sources = competingChains(), reply = sources.find(source => source.id === "maya-reply")!, parent = sources.find(source => source.id === "leo-photo")!;
+    generated({ status: "answered", claims: [{ kind: "lineage", childId: reply.id }], summary: "" });
+    await expect(synthesizeAnswer("Who did Maya build on?", [reply, ...Array.from({ length: 7 }, (_, i) => memory(`unrelated-${i}`)), parent]))
+      .rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it.each([
+    { label: "competing recorded chains", sources: competingChains(), eligibleChildren: ["maya-reply", "lee-photo", "leo-photo"] },
+    { label: "no resolved parents", sources: [memory()], eligibleChildren: [] },
+    { label: "an unavailable parent", sources: [competingChains()[1]], eligibleChildren: [] },
+  ])("converts the provider-facing schema for $label with only scoped children and strict selections", async ({ sources, eligibleChildren }) => {
+    generated({ status: "answered", claims: [excerpt(sources[0].id, sources[0].body)], summary: "" });
+    await synthesizeAnswer("What do these memories record?", sources);
+    // Await the SDK's real lazy Zod-to-JSON conversion, which a mocked model
+    // otherwise bypasses. Inspect the public contract rather than snapshotting
+    // how the converter happens to arrange discriminated-union branches.
+    const format = await vi.mocked(generateText).mock.calls[0][0].output?.responseFormat;
+    expect(format?.type).toBe("json");
+    if (!format || format.type !== "json") throw Error("Expected a provider JSON schema");
+    const objects = (value: unknown): Record<string, unknown>[] => {
+      if (!value || typeof value !== "object") return [];
+      return [value as Record<string, unknown>, ...Object.values(value).flatMap(objects)];
+    };
+    const objectSchemas = objects(format.schema).filter(node => node.type === "object" && node.properties);
+    expect(objectSchemas.length).toBeGreaterThanOrEqual(2);
+    for (const node of objectSchemas) {
+      expect(node.additionalProperties).toBe(false);
+      const properties = node.properties as Record<string, unknown>;
+      expect(properties).not.toHaveProperty("parentId");
+      expect(properties).not.toHaveProperty("text");
+      expect(properties).not.toHaveProperty("sourceIds");
+    }
+    const lineage = objectSchemas.find(node => (node.properties as Record<string, { const?: string }>).kind?.const === "lineage");
+    if (eligibleChildren.length) {
+      expect(lineage).toBeDefined();
+      const childSchema = (lineage!.properties as Record<string, { enum?: string[] }>).childId;
+      expect(new Set(childSchema.enum)).toEqual(new Set(eligibleChildren));
+      expect(lineage!.required).toEqual(expect.arrayContaining(["kind", "childId"]));
+    } else {
+      expect(lineage).toBeUndefined();
+      expect(objectSchemas.some(node => Object.hasOwn(node.properties as object, "childId"))).toBe(false);
+    }
+  });
+
+  it("resolves lineage from the current source record rather than a remembered author name or prior parent", async () => {
+    generated({ status: "answered", claims: [{ kind: "lineage", childId: "maya-reply" }], summary: "" });
+    const first = await synthesizeAnswer("Who did Maya build on?", competingChains());
+    expect(first.claims[0].sourceIds).toEqual(["maya-reply", "leo-photo"]);
+
+    const current = competingChains().map(source => source.id === "maya-reply" ? { ...source, inspiredBy: "nina-root", version: 2 } : source);
+    const changed = await synthesizeAnswer("Who did Maya build on?", current);
+    expect(changed.claims[0].sourceIds).toEqual(["maya-reply", "nina-root"]);
+    expect(changed.claims[0].text).toContain("Nina");
+    expect(changed.claims[0].text).toContain("The long way home");
+    expect(changed.claims[0].text).not.toContain("Leo-demo");
+  });
+
+  it.each([
+    ["body", "My dad sang on the train."],
+    ["body", "A blue cassette on a table."],
+    ["imageDescription", "A Sunday keepsake."],
+    ["imageDescription", "A red cassette on a table."],
+  ] as const)("rejects an altered, nonexistent or cross-field %s quotation: %s", async (field, exactQuote) => {
+    const image: Memory = { ...memory(), type: "image", body: "A Sunday keepsake.", imageDescription: "A blue cassette on a table." };
+    generated({ status: "answered", claims: [excerpt(image.id, exactQuote, field)], summary: "" });
+    await expect(synthesizeAnswer("What was left here?", [image])).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("cannot quote a missing machine description or borrow an exact quote from a different original", async () => {
+    generated({ status: "answered", claims: [excerpt("memory-one", "My dad sang in the car.", "imageDescription")], summary: "" });
+    await expect(synthesizeAnswer("What is visible?", [memory()])).rejects.toMatchObject({ code: "invalid_response" });
+    generated({ status: "answered", claims: [excerpt("other", "My dad sang in the car.")], summary: "" });
+    await expect(synthesizeAnswer("What do they remember?", [memory(), memory("other", "I cooked pancakes.")])).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("does not publish fabricated prose through an insufficient-answer summary", async () => {
+    generated({ status: "insufficient", claims: [], summary: "Maya's reply was inspired by Nina's story." });
+    const answer = await synthesizeAnswer("How did it grow?", competingChains());
+    expect(answer.status).toBe("insufficient");
+    expect(answer.claims).toEqual([]);
+    expect(answer.summary).not.toContain("Nina");
+    expect(answer.summary).not.toContain("Maya");
+    expect(answer.summary).not.toBe("");
   });
 
   it("keeps source instructions in quoted data and supplies neither tools nor secret context", async () => {
@@ -194,23 +329,31 @@ describe("grounded answers", () => {
     }));
   });
 
-  it("keeps machine image descriptions separate from the author's own words", async () => {
-    generated({ status: "answered", claims: [{ text: "The image appears to show a blue cassette.", sourceIds: ["memory-one"] }], summary: "" });
-    await synthesizeAnswer("Which image shows a cassette?", [{ ...memory(), type: "image", body: "A Sunday keepsake.", imageDescription: "A blue cassette on a table." }]);
-    const request = vi.mocked(generateText).mock.calls[0][0];
+  it("keeps machine image descriptions separate from the author's own words in both context and published attribution", async () => {
+    const image: Memory = { ...memory(), type: "image", body: "A Sunday keepsake.", imageDescription: "A blue cassette on a table." };
+    generated({ status: "answered", claims: [excerpt(image.id, image.body)], summary: "" });
+    const authored = await synthesizeAnswer("What did the author leave?", [image]);
+    generated({ status: "answered", claims: [excerpt(image.id, image.imageDescription!, "imageDescription")], summary: "" });
+    const visual = await synthesizeAnswer("Which image shows a cassette?", [image]);
+    const request = vi.mocked(generateText).mock.calls[1][0];
     const source = JSON.parse(request.prompt as string).sources[0];
     expect(source.body).toBe("A Sunday keepsake.");
     expect(source.imageDescription).toBe("A blue cassette on a table.");
     expect(request.system).toContain("machine-derived");
+    expect(authored.claims[0].text).toContain("A Sunday keepsake.");
+    expect(visual.claims[0].text).toContain("A blue cassette on a table.");
+    expect(authored.claims[0].text).not.toMatch(/machine-derived/i);
+    expect(visual.claims[0].text).toMatch(/machine-derived/i);
+    expect(visual.claims[0].sourceIds).toEqual([image.id]);
   });
 
   it("limits model context and citation eligibility to eight unique sources", async () => {
-    generated({ status: "answered", claims: [{ text: "A remembered drive.", sourceIds: ["memory-0"] }], summary: "" });
+    generated({ status: "answered", claims: [excerpt("memory-0")], summary: "" });
     await synthesizeAnswer("What do people remember?", Array.from({ length: 12 }, (_, i) => memory(`memory-${i}`)));
     const prompt = JSON.parse(vi.mocked(generateText).mock.calls[0][0].prompt as string);
     expect(prompt.sources).toHaveLength(8);
     expect(prompt.sources.at(-1).id).toBe("memory-7");
-    generated({ status: "answered", claims: [{ text: "A remembered drive.", sourceIds: ["memory-8"] }], summary: "" });
+    generated({ status: "answered", claims: [excerpt("memory-8")], summary: "" });
     await expect(synthesizeAnswer("What do people remember?", Array.from({ length: 12 }, (_, i) => memory(`memory-${i}`))))
       .rejects.toMatchObject({ code: "invalid_response" });
   });
