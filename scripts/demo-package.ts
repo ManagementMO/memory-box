@@ -1,5 +1,6 @@
 /** Package two successful actual recordings for the standalone demo viewer.
- * Usage: npx tsx scripts/demo-package.ts <desktop-work-dir> <mobile-work-dir>
+ * Usage: npx tsx scripts/demo-package.ts <desktop-work-dir> [mobile-work-dir]
+ * A desktop-only invocation exposes real media for independent viewer review.
  * Requires local ffmpeg; does not call the app, Auth, database or any model.
  */
 import assert from "node:assert/strict";
@@ -16,6 +17,24 @@ type Chapter = { id: string; title: string; explanation: string; atMs: number; s
 type Evidence = { format: string; mode: "desktop" | "mobile"; startedAt: string; origin: string; storyStartMs: number; storyEndMs: number; chapters: Chapter[]; cleaned: boolean; cleanup: Record<string, unknown>; failure?: string };
 type Recording = { role: "maya" | "leo"; file: string; startedAtMs: number; trimStartSeconds: number; trimEndSeconds: number };
 const json = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
+function readableEvidence(chapter: Chapter): string[] {
+  const detail = chapter.detail || {};
+  const byId: Record<string, string[]> = {
+    welcome: ["Two distinct guest identities; each session has its own browser storage."],
+    "maya-preview": [`${detail.staged} pixels drawn in a local preview before publication.`],
+    "maya-shared": ["Leo received the real accepted revision.", "The second canvas rendered the expected pixel color."],
+    "leo-preview": [`${detail.staged} blush pixels include ${detail.sharedCells} repaint of Maya’s accepted work.`],
+    together: ["Both sessions received the committed picture.", "The rendered second-session color was checked."],
+    memory: ["Maya’s original is attached to her paint operation.", "Leo can read and build on it, while Maya keeps authorship."],
+    photo: ["The generated demo image used the actual upload and sanitization pipeline.", "Leo’s separate contribution links to Maya’s original."],
+    "build-on": ["Three separate originals form a real build-on chain.", "Maya’s first text and authorship remain unchanged."],
+    find: [`The actual ${detail.mode || "hybrid"} retrieval included their new original.`],
+    ask: [`One actual Ask returned ${detail.claims} cited claims.`, "At least one claim cites a new demo original."],
+    source: ["The citation reader matched the exact source body."],
+    finish: ["Returning from the source made no additional generation request.", "The temporary contributions were cleaned after capture."],
+  };
+  return byId[chapter.id] || [];
+}
 
 async function packageMode(dir: string, expected: "desktop" | "mobile") {
   const evidence = json<Evidence>(resolve(dir, "demo-evidence.json"));
@@ -39,10 +58,12 @@ async function packageMode(dir: string, expected: "desktop" | "mobile") {
     const stills: Record<string, string> = {};
     for (const role of roles) { const target = `${expected}-${basename(chapter.stills[role])}`; copyFileSync(resolve(dir, chapter.stills[role]), resolve(output, "stills", target)); stills[role] = `stills/${target}`; }
     return { id: chapter.id, title: chapter.title, start: index === 0 ? 0 : Math.max(0, (evidence.chapters[index - 1].atMs - evidence.storyStartMs) / 1000),
-      end: Math.min(duration, (chapter.atMs - evidence.storyStartMs) / 1000), actor: actorByChapter[chapter.id] || "both", summary: chapter.explanation, stills, evidence: chapter.detail };
+      end: Math.min(duration, (chapter.atMs - evidence.storyStartMs) / 1000), actor: actorByChapter[chapter.id] || "both", summary: chapter.explanation, stills, evidence: readableEvidence(chapter), verification: chapter.detail };
   });
   copyFileSync(resolve(dir, "actual-answer.json"), resolve(output, `${expected}-actual-answer.json`));
   writeFileSync(resolve(output, `${expected}-cleanup.json`), JSON.stringify({ mode: expected, recordedAt: evidence.startedAt, origin: evidence.origin, automated: true, cleanup: evidence.cleanup }, null, 2));
+  const independentAudit = resolve(dir, "independent-cleanup-audit.json");
+  if (existsSync(independentAudit)) copyFileSync(independentAudit, resolve(output, `${expected}-independent-cleanup-audit.json`));
   return { label: expected === "desktop" ? "Desktop" : "Mobile", duration, actors, chapters, recordedAt: evidence.startedAt, origin: evidence.origin,
     viewport: expected === "desktop" ? { width: 1440, height: 960 } : { width: 390, height: 844 },
     engine: expected === "desktop" ? "Chromium desktop" : "Chromium mobile emulation with real touch paint input",
@@ -50,10 +71,10 @@ async function packageMode(dir: string, expected: "desktop" | "mobile") {
 }
 
 async function main() {
-  const [desktop, mobile] = process.argv.slice(2); assert.ok(desktop && mobile, "Provide successful desktop and mobile work directories.");
+  const [desktop, mobile] = process.argv.slice(2); assert.ok(desktop, "Provide a successful desktop work directory and optionally the mobile directory.");
   mkdirSync(resolve(output, "media"), { recursive: true }); mkdirSync(resolve(output, "stills"), { recursive: true });
-  const modes = { desktop: await packageMode(resolve(desktop), "desktop"), mobile: await packageMode(resolve(mobile), "mobile") };
-  const manifest = { status: "ready", title: "Memory Box — two people, one world", recordedAt: new Date().toISOString(),
+  const modes = { desktop: await packageMode(resolve(desktop), "desktop"), ...(mobile ? { mobile: await packageMode(resolve(mobile), "mobile") } : {}) };
+  const manifest = { status: mobile ? "ready" : "desktop-preview", title: "Memory Box — two people, one world", recordedAt: new Date().toISOString(),
     provenance: { actors: "Two independent automated guest sessions in each recording, controlled by the builder. These are not footage of two human participants.",
       image: "An original generated still-life demo image; each contributed family story is explicitly fictional.",
       backend: "Actual application UI, Supabase Auth/Storage/Postgres/Realtime, real hybrid retrieval and one provider-backed Ask per device recording. No application-response stubs or fake presence.",
