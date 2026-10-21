@@ -31,36 +31,36 @@
 
 Files: new world-bounds.ts and forward migration; validation.ts, scenes.ts, operator.ts and focused bounds tests. Shared constants are WORLD_MIN=-60000, WORLD_MAX=59999, GRID_SIZE=6, CELL_MIN=-10000, CELL_MAX=9999. Existing snapshot dimensions remain entry-view metadata.
 
-- [ ] Test signed/edge/invalid coordinates and shaped paint clipping.
-- [ ] Widen constraints/functions and keep idempotence/undo/operator authorization unchanged.
-- [ ] Prepare and review migration; apply only after local checks, then run database/HTTP checks with exact fixture cleanup.
+- [x] Test signed/edge/invalid coordinates and shaped paint clipping.
+- [x] Widen constraints/functions and keep idempotence/undo/operator authorization unchanged.
+- [x] Prepare and review migration; apply only after local checks, then run database/HTTP checks with exact fixture cleanup.
 
 ### 2. Camera and real freehand collaboration
 
 Files: new canvas-geometry.ts and its tests; world-canvas.tsx; memory-box-app.tsx.
 
-- [ ] Write failing tests for anchored zoom, signed point conversion, framing and bounded stroke merging.
-- [ ] Implement viewport rendering, pan/pinch/zoom, coordinates, local-map view and camera save/restore.
-- [ ] Implement staged Draw pixels and existing Place a shape,144-cell cap, explicit acceptance and partial undo through real endpoints.
-- [ ] Check independent visitor delivery and changed-cell repaint without seed resets.
+- [x] Write failing tests for anchored zoom, signed point conversion, framing and bounded stroke merging.
+- [x] Implement viewport rendering, pan/pinch/zoom, coordinates, local-map view and camera save/restore.
+- [x] Implement staged Draw pixels and existing Place a shape,144-cell cap, explicit acceptance and partial undo through real endpoints.
+- [x] Check independent visitor delivery and changed-cell repaint without seed resets.
 
 ### 3. Approved visual system and complete contribution flow
 
 Files: globals.css, layout.tsx/fonts/favicon, memory-card.tsx, memory-composer.tsx and app shell/source navigation.
 
-- [ ] Apply white/cobalt/pastel tokens, pixel accents, readable material-specific originals and responsive panels.
-- [ ] Preserve text/image/link drafts and parent; reveal placed sources and restore query/camera/focus on return.
-- [ ] Show actual recent changes and seed provenance; retain ownership, errors, loading and moderation controls.
-- [ ] Capture and inspect desktop/mobile renders including source reader, paint, upload and Ask.
+- [x] Apply white/cobalt/pastel tokens, pixel accents, readable material-specific originals and responsive panels.
+- [x] Preserve text/image/link drafts and parent; reveal placed sources and restore query/camera/focus on return.
+- [x] Show actual recent changes and seed provenance; retain ownership, errors, loading and moderation controls.
+- [x] Capture and inspect desktop/mobile renders including source reader, paint, upload and Ask.
 
 ### 4. Verify and release
 
 Files: new open-world browser coverage, README/build-ledger and release evidence.
 
-- [ ] Run unit tests, typecheck, production build and existing/new browser tests.
-- [ ] Run bounded real collaboration/upload/build-on/search/Ask checks and clean exact fixtures.
-- [ ] Obtain independent whole-branch review, fix material findings and repeat affected verification.
-- [ ] Commit named files, publish branch/PR, deploy authorized app and recheck Git/CI/health/key live behaviors.
+- [x] Run unit tests, typecheck, production build and existing/new browser tests.
+- [x] Run bounded real collaboration/upload/build-on/search/Ask checks and clean exact fixtures.
+- [x] Obtain independent whole-branch review, fix material findings and repeat affected verification.
+- [x] Commit named files, publish branch/PR, deploy authorized app and recheck Git/CI/health/key live behaviors.
 
 ## Execution notes
 
