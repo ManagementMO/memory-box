@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { adminClient, DatabaseError, listReports, moderate } from "../src/lib/server/database";
-import { reportInput } from "../src/lib/server/validation";
+import { cellBoundsInput } from "../src/lib/server/validation";
 
 const help = `Memory Box pilot operator
 
@@ -19,25 +19,25 @@ All commands need local Supabase server credentials; --help needs no credentials
   npm run operator -- pause --actor <operator-profile-uuid>
   npm run operator -- resume --actor <operator-profile-uuid>
   npm run operator -- clear <x> <y> <width> <height> --actor <operator-profile-uuid>
+  npm run operator -- clear --actor <operator-profile-uuid> -- -40 -20 10 10
   npm run operator -- suspend <profile-uuid> --actor <operator-profile-uuid>
   npm run operator -- unsuspend <profile-uuid> --actor <operator-profile-uuid>
 
 MEMORY_BOX_OPERATOR_ID may supply the actor instead of --actor. Moderation requires an
 existing, unsuspended operator profile and uses the audited database moderation RPC.
 Grant/revoke bootstrap access by changing only an exact, existing profile UUID.
-Clear erases paint in grid cells (200 columns x 120 rows), advances the world epoch,
-and invalidates old undo operations. It does not remove memories. No prompt is shown.
+Clear takes signed grid-cell coordinates (-10000..9999) and an area up to 200 x 120 cells.
+Put -- before negative coordinate arguments, as in the second clear example.
+Clear advances the world epoch and invalidates old undo operations.
+It does not remove memories. No prompt is shown.
 Profiles lists the newest 50 profiles (limit 1..200); reports lists up to 100 open reports.
 Keys, sessions, email addresses, and auth metadata are never printed.
 `;
 
 class CliError extends Error {}
 const uuid = z.string().uuid("Use a complete profile or memory UUID.").transform(value => value.toLowerCase());
-const integer = (label: string) => z.string().regex(/^\d+$/, `${label} must be a whole number.`).transform(Number).pipe(z.int());
-const boundsSchema = reportInput.shape.bounds.unwrap().refine(
-  bounds => bounds.x + bounds.width <= 200 && bounds.y + bounds.height <= 120,
-  "The entire clear rectangle must fit inside the 200 x 120 cell grid.",
-);
+const integer = (label: string) => z.string().regex(/^-?\d+$/, `${label} must be a whole number.`).transform(Number).pipe(z.int());
+const boundsSchema = cellBoundsInput;
 type ModerationAction = Parameters<typeof moderate>[1];
 type Command =
   | { action: "help" }

@@ -1,13 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
+
+const schibsted = localFont({ src: "../../public/fonts/schibsted-grotesk-latin.woff2", variable: "--font-schibsted", weight: "400 700", display: "swap", fallback: ["Arial", "sans-serif"] });
+const pixelify = localFont({ src: "../../public/fonts/pixelify-sans-latin.woff2", variable: "--font-pixelify", weight: "400 700", display: "swap", adjustFontFallback: false, fallback: ["sans-serif"] });
+const plexMono = localFont({ src: "../../public/fonts/ibm-plex-mono-latin.woff2", variable: "--font-plex-mono", weight: "400", display: "swap", preload: false, adjustFontFallback: false, fallback: ["monospace"] });
 
 export const metadata: Metadata = {
   title: "Memory Box — a little world we leave together",
   description: "Build a shared picture. Leave a memory, an image, or an unfinished idea. Find the little connections people leave behind.",
   icons: { icon: "/favicon.svg" },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#E8EEEA", interactiveWidget: "resizes-content" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#FFFFFF", interactiveWidget: "resizes-content" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en" className={`${schibsted.variable} ${pixelify.variable} ${plexMono.variable}`}><body>{children}</body></html>;
 }
