@@ -7,8 +7,8 @@ export class ApiError extends Error {
   constructor(message: string, public status: number, public code = "request_failed", public retryAfterSeconds?: number, public paintTurn?: PaintTurnTiming) { super(message); this.name = "ApiError"; }
 }
 
-export async function publicApi<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store" });
+export async function publicApi<T>(path: string, init: Pick<RequestInit, "signal"> = {}): Promise<T> {
+  const response = await fetch(path, { ...init, cache: "no-store" });
   const payload = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(typeof payload?.error === "string" ? payload.error : "The commons couldn’t be loaded. Please try again.", response.status);
   return payload as T;

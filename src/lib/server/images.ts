@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { adminClient, getAsset, markAssetReady } from "./database";
+import { adminClient, consumeBudget, getAsset, markAssetReady } from "./database";
 import { ApiError } from "./http";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -26,6 +26,10 @@ export async function finalizeImage(actorId: string, assetId: string) {
   if (!asset || asset.owner_id !== actorId) throw new ApiError(403, "Choose an image from your own upload.", "asset_not_owned");
   if (asset.status === "ready") return asset;
   if (asset.status !== "staging") throw new ApiError(400, "Choose the image again before publishing.", "asset_unavailable");
+  // Upload reservations allow 12 images/hour. Give each two processing attempts
+  // on average; malformed or interrupted files cannot trigger unlimited decoding.
+  // Ready/idempotent publications do not spend this allowance.
+  await consumeBudget(actorId, "image_finalize", 24, 3600);
   const storage = adminClient().storage;
   const download = await storage.from("memory-staging").download(asset.staging_path);
   if (download.error || !download.data) throw new ApiError(400, "The image is still uploading. Wait a moment, then publish again.", "upload_incomplete");
@@ -45,6 +49,8 @@ export async function finalizeImage(actorId: string, assetId: string) {
     } catch { /* Preserve the readiness failure and the draft for the caller. */ }
     throw error;
   }
-  await storage.from("memory-staging").remove([asset.staging_path]);
+  // Readiness has committed. A cleanup outage must not undo publication;
+  // the leased staging sweep retries this exact path after upload-token expiry.
+  await storage.from("memory-staging").remove([asset.staging_path]).catch(() => undefined);
   return getAsset(assetId);
 }

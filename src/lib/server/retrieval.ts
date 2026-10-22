@@ -1,6 +1,7 @@
 import type { AnswerResponse, SceneId, SearchResponse } from "../types";
 import { AIServiceError, embedText, synthesizeAnswer } from "./ai";
 import { getSnapshot, searchMemories } from "./database";
+import { sameAnswerEvidence } from "../answer-evidence";
 
 export async function retrieve(query: string, sceneId?: SceneId): Promise<SearchResponse> {
   let embedding: number[] | null = null;
@@ -29,7 +30,7 @@ export async function ask(query: string, sceneId?: SceneId): Promise<AnswerRespo
   try {
     const latest = await getSnapshot();
     results = found.results.flatMap(result => {
-      const current = latest.memories.find(memory => memory.id === result.memory.id && memory.version === result.memory.version);
+      const current = latest.memories.find(memory => sameAnswerEvidence(result.memory, memory));
       return current ? [{...result, memory:current}] : [];
     });
   } catch { /* A future request can retry against the current database. */ }

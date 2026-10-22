@@ -20,13 +20,36 @@ export function assertOrigin(request: Request) {
   }
 }
 
+export const MAX_JSON_BYTES = 100_000;
+
 export async function readJson<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
-  if (Number(request.headers.get("content-length") || 0) > 100_000) {
+  if (Number(request.headers.get("content-length") || 0) > MAX_JSON_BYTES) {
     throw new ApiError(413, "This contribution is too large.", "request_too_large");
   }
   let body: unknown;
-  try { body = await request.json(); }
-  catch { throw new ApiError(400, "The request could not be read. Try again.", "invalid_json"); }
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    reader = request.body?.getReader();
+    if (!reader) throw new Error("missing_body");
+    const decoder = new TextDecoder();
+    let bytes = 0, text = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_JSON_BYTES) {
+        void reader.cancel().catch(() => undefined);
+        throw new ApiError(413, "This contribution is too large.", "request_too_large");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    body = JSON.parse(text + decoder.decode());
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, "The request could not be read. Try again.", "invalid_json");
+  } finally {
+    reader?.releaseLock();
+  }
   return schema.parse(body);
 }
 
@@ -42,6 +65,7 @@ export function errorResponse(error: unknown) {
     fields: error.issues.map(issue => issue.path.join("."))
   }, 400);
   const message = error instanceof Error ? error.message : "";
+  if (message === "ACCOUNT_SUSPENDED") return json({error: "This session cannot contribute right now.", code: "session_suspended"}, 403);
   if (/budget|rate.limit|too many|cooldown/i.test(message)) {
     return new Response(JSON.stringify({error: "A little pause helps everyone share the space. Try again shortly.", code: "rate_limited"}), {
       status: 429, headers: {"Content-Type": "application/json", "Cache-Control": "no-store", "Retry-After": "30"}

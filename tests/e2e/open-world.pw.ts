@@ -237,7 +237,7 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   expect(findScroll.panel).toBeGreaterThan(100);
   await lastResult.click();
   await expect(page.locator(".original-body")).toHaveText(sources.at(-1)!.body);
-  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "In their own words", exact: true })).toBeInViewport();
+  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "Original", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Show in canvas", exact: true }).click();
   await expect(panel(page)).toHaveCount(0);
   await page.getByRole("button", { name: "Back to results", exact: true }).click();
@@ -260,8 +260,9 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   expect(askScroll.panel).toBeGreaterThan(100);
   await citation.click();
   await expect(page.locator(".original-body")).toHaveText(sources.at(-1)!.body);
-  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "In their own words", exact: true })).toBeInViewport();
+  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "Original", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Show in canvas", exact: true }).click();
+  await expect(panel(page)).toHaveCount(0);
   await page.getByRole("button", { name: "Back to answer", exact: true }).click();
   await expectCamera(page, askCamera);
   await expectScroll(page, askScroll);

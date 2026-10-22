@@ -119,7 +119,7 @@ export function MemoryBoxApp() {
   const canWrite = !!identity && connection === "live";
   const isAnswer = (data: SearchResponse | AnswerResponse | null): data is AnswerResponse => !!data && "status" in data;
   const currentSearchData = useMemo(() => searchData && world ? projectSearch(searchData, world.memories) : null, [searchData, world]);
-  const effectiveAnswerInvalid = answerInvalid || !!(searchData && "sourceVersions" in searchData && world && answerSourcesChanged(searchData.sourceVersions, world.memories));
+  const effectiveAnswerInvalid = answerInvalid || !!(searchData && "sourceVersions" in searchData && world && answerSourcesChanged(searchData.sourceVersions, world.memories, searchData.results.map(result => result.memory)));
   const foundIds = (panel === "search" || backToSearch) ? currentSearchData?.results.map((result) => result.memory.id) ?? [] : [];
 
   useEffect(() => { if (!announcement) return; const timer=setTimeout(() => setAnnouncement(""), 6500); return () => clearTimeout(timer); }, [announcement]);
@@ -132,7 +132,7 @@ export function MemoryBoxApp() {
   useEffect(() => {
     const data = searchDataRef.current;
     if (!world || !data) return;
-    if ("sourceVersions" in data && answerSourcesChanged(data.sourceVersions, world.memories)) {
+    if ("sourceVersions" in data && answerSourcesChanged(data.sourceVersions, world.memories, data.results.map(result => result.memory))) {
       setAnswerInvalid(true); setAnnouncement("A memory behind this answer changed. Ask again to read the current originals.");
     }
   }, [world]);
@@ -217,7 +217,7 @@ export function MemoryBoxApp() {
   };
   const resumeDraft = () => { setPanel("compose"); setPending(null); setBackToDraft(false); setBackToSearch(false); };
   const closePanel = () => { setArrival(null); setBackToDraft(false); setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); };
-  const cancelPlacement = useCallback(() => { setPending((previous) => { setPanel(previous?.kind === "memory" ? "compose" : "paint"); return null; }); setFormError(""); setAnnouncement(""); }, []);
+  const cancelPlacement = useCallback(() => { if (busy) return; setPending((previous) => { setPanel(previous?.kind === "memory" ? "compose" : "paint"); return null; }); setFormError(""); setAnnouncement(""); }, [busy]);
 
   const previewMemory = () => {
     if (!draft || !world) return;
@@ -272,14 +272,16 @@ export function MemoryBoxApp() {
         setAnnouncement(`${cells.length} ${cells.length === 1 ? "pixel" : "pixels"} added to the canvas.`);
       } else if (draft) {
         let assetId = draft.assetId;
-        if (draft.type === "image" && draft.file && !assetId) { setBusy("Uploading your image…"); assetId = await uploadImage(draft.file); setDraft((old) => old ? { ...old, assetId } : old); }
+        if (draft.type === "image" && draft.file && !assetId) { setBusy("Uploading your image…"); assetId = await uploadImage(draft.file); setDraft((old) => old?.clientId === draft.clientId ? { ...old, assetId } : old); }
         setBusy("Leaving your memory…");
         const body: NewMemory = { clientId: draft.clientId, type: draft.type, title: draft.title.trim(), body: draft.body.trim(), color: draft.color, x: pending.x, y: pending.y, sceneId: pending.sceneId, ...(draft.type === "link" ? { url: draft.url.trim() } : {}), ...(draft.type === "image" && assetId ? { assetId } : {}), ...(draft.inspiredBy ? { inspiredBy: draft.inspiredBy } : {}), ...(draft.paintOperationId ? { paintOperationId: draft.paintOperationId } : {}) };
         const result = await api<Memory | { memory: Memory }>("/api/memories", { method: "POST", body: JSON.stringify(body) });
         const saved = "memory" in result ? result.memory : result;
-        await refresh(); setPending(null); setPanel("inspect"); setSelectedId(saved.id); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false); setBackToDraft(false);
+        const current = await refresh();
+        const visible = current?.memories.some(memory => memory.id === saved.id);
+        setPending(null); setPanel(visible ? "inspect" : null); setSelectedId(visible ? saved.id : null); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false); setBackToDraft(false);
         setContribution(memoryContributionMark(saved));
-        setAnnouncement(draft.inspiredBy ? "Added, with a link to the original." : "Added to the canvas.");
+        setAnnouncement(!current ? "Saved. Reconnecting to show it." : draft.inspiredBy ? "Added, with a link to the original." : "Added to the canvas.");
       }
     } catch (cause) { if(pending.kind==="paint")handlePaintRejection(cause);setFormError(cause instanceof Error ? cause.message : "This didn’t save. Your draft is still here."); }
     finally { setBusy(""); }
@@ -290,7 +292,9 @@ export function MemoryBoxApp() {
     setBusy("Saving changes…"); setFormError("");
     try {
       await api(`/api/memories/${draft.editId}`, { method: "PATCH", body: JSON.stringify({ expectedVersion: draft.expectedVersion, title: draft.title.trim(), body: draft.body.trim(), url: draft.type === "link" ? draft.url.trim() : null, color: draft.color }) });
-      await refresh(); setSelectedId(draft.editId); setPanel("inspect"); setDraft(null); setBackToDraft(false); setAnnouncement("Your memory has been updated.");
+      const current = await refresh();
+      const visible = current?.memories.some(memory => memory.id === draft.editId);
+      setSelectedId(visible ? draft.editId : null); setPanel(visible ? "inspect" : null); setDraft(null); setBackToDraft(false); setAnnouncement(current ? "Your memory has been updated." : "Saved. Reconnecting to show it.");
     } catch (cause) { setFormError(cause instanceof Error ? cause.message : "These changes didn’t save. Try again."); }
     finally { setBusy(""); }
   }
@@ -353,6 +357,7 @@ export function MemoryBoxApp() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (busy) return;
       if (event.key === "Escape") { if (pending) cancelPlacement(); else { setPanel(null); setSelectedId(null); setBackToSearch(false); } return; }
       if (event.target instanceof HTMLElement && (event.target.closest("input,textarea,select,[contenteditable=true]"))) return;
       if (event.key === "/") { event.preventDefault(); keepInputFocus.current=true;setPanel("search");requestAnimationFrame(()=>searchInput.current?.focus()); return; }
@@ -504,29 +509,29 @@ export function MemoryBoxApp() {
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
-      {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={showScene} onOpen={(id) => openMemory(id, panel === "search" || backToSearch)} onPosition={updatePosition}>
+      {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) openMemory(id, panel === "search" || backToSearch); }} onPosition={updatePosition}>
         {!panel && !pending ? <button type="button" className="meet-here-button canvas-overlay" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
         {arrival && !panel && !pending ? <div className="shared-arrival canvas-overlay" aria-label="Shared spot">
           <div className="shared-arrival-heading"><MapPin size={22} /><strong>{arrival.memoryId ? "This original is unavailable" : "You’re at the shared spot"}</strong><button type="button" className="icon-button" aria-label="Dismiss shared spot" onClick={() => setArrival(null)}><X size={16} /></button></div>
           <p>{arrival.memoryId ? "Its spot is still here to explore." : "Paint together, or add something nearby."}</p>
           <div className="arrival-actions"><button type="button" onClick={showPaint}><Paintbrush size={16} />Paint here</button><button type="button" onClick={() => draft ? (setArrival(null), resumeDraft()) : startMemory()}><StickyNote size={16} />{draft ? "Your draft" : "Note"}</button><button type="button" onClick={() => startMemory(undefined, undefined, "image")}><ImageIcon size={16} />Photo</button></div>
         </div> : null}
-        <button type="button" className="world-presence canvas-overlay" aria-label="Who is here" data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>
+        <button type="button" className="world-presence canvas-overlay" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>
         {!panel && !pending ? <button type="button" ref={invitationElement} className="mosaic-invitation canvas-overlay" onClick={buildTogether}><span className="pixel-invite-mark" aria-hidden="true">▪ ▪ ▪</span><span><strong>{presence.peers.some(p=>p.tool==="paint") ? "Someone is making something." : landmark.title}</strong><small>{presence.peers.some(p=>p.tool==="paint") ? "Go paint beside them ↗" : "Make your next move here ↗"}</small></span></button> : null}
-        {!panel && latestChange ? <button type="button" className="world-change canvas-overlay" onClick={()=>setPanel("activity")}><span className="presence-light is-live"/><span><strong>{latestChange.authorName}</strong> {latestChange.description}<small>{relativeDate(latestChange.createdAt)}</small></span></button> : null}
-        {!pending && backToSearch ? <button type="button" className="button button-secondary search-return canvas-overlay" onClick={returnToSearch}><ArrowLeft size={14} />Back to {searchMode === "ask" ? "answer" : "results"}</button> : null}
+        {!panel && latestChange ? <button type="button" className="world-change canvas-overlay" disabled={!!busy} onClick={()=>setPanel("activity")}><span className="presence-light is-live"/><span><strong>{latestChange.authorName}</strong> {latestChange.description}<small>{relativeDate(latestChange.createdAt)}</small></span></button> : null}
+        {!pending && backToSearch ? <button type="button" className="button button-secondary search-return canvas-overlay" disabled={!!busy} onClick={returnToSearch}><ArrowLeft size={14} />Back to {searchMode === "ask" ? "answer" : "results"}</button> : null}
         {!pending && ((panel === "paint" && paintMode === "draw") || brushPixels.length > 0) ? <div className="canvas-paint-bar canvas-overlay" data-paint-wait={paintWait}><span className="paint-preview-count">{brushPixels.length} pixels · preview<small className="compact-turn">{paintWait>0?`Next move in ${paintWait}s · keep sketching`:"144 pixels · 15s turns"}</small></span><label className="brush-color-label"><span className="visually-hidden">Brush color</span><input type="color" value={paintColor} onChange={event => setPaintColor(event.target.value)} aria-label="Brush color" /></label><button type="button" className="button button-primary" aria-label="Share preview pixels" onClick={() => void publishBrush()} disabled={!brushPixels.length || !!busy || !canWrite || world.paintingPaused || paintWait>0}>{busy || (paintWait>0?`${paintWait}s`:"Add pixels")}<Check size={14} /></button><button type="button" className="icon-button" onClick={clearBrush} disabled={!brushPixels.length || !!busy} aria-label="Clear pixel preview"><X size={15} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}</div> : null}
         {pending ? <div className="placement-bar canvas-overlay"><div><strong>{pending.kind === "paint" && paintWait>0?`Next save in ${paintWait}s`:"Choose a position"}</strong><p>Tap to move · arrow keys to nudge</p></div><button type="button" className="button button-primary" onClick={() => void publish()} disabled={!!busy || !canWrite || (pending.kind==="paint"&&paintWait>0)}>{busy ? <><span className="spinner" />{busy}</> : pending.kind === "paint" ? <>Paint here<Check size={16} /></> : <>Leave it here<Check size={16} /></>}</button><button type="button" className="icon-button" aria-label="Cancel placement" onClick={cancelPlacement} disabled={!!busy}><X size={24} /></button>{formError ? <p className="placement-error" role="alert">{formError}</p> : null}</div> : null}
-        {!pending ? <CanvasDock><ToolButton label="Explore canvas" className="explore-button" onClick={showWholeWorld}><PixelToolIcon tool="explore" /><span>Explore</span></ToolButton><ToolButton className="wander-button" label="Wander into a story" onClick={wander}><PixelToolIcon tool="wander" /><span>Wander</span></ToolButton><ToolButton className="together-button" label="Build together" aria-pressed={panel==="together"} onClick={buildTogether}><PixelToolIcon tool="together" /><span>Together</span></ToolButton><ToolButton className="paint-button" label="Paint" aria-pressed={panel === "paint"} onClick={showPaint}><PixelToolIcon tool="paint" /><span>Paint</span></ToolButton><ToolButton className="note-button" label="Leave" aria-pressed={panel === "compose" && draft?.type !== "image"} onClick={() => draft ? resumeDraft() : startMemory()}><PixelToolIcon tool="note" /><span>Note</span></ToolButton><ToolButton className="photo-button" label="Leave a photo" aria-pressed={panel === "compose" && draft?.type === "image"} onClick={() => startMemory(undefined, undefined, "image")}><PixelToolIcon tool="photo" /><span>Photo</span></ToolButton></CanvasDock> : null}
+        {!pending ? <CanvasDock><ToolButton disabled={!!busy} label="Explore canvas" className="explore-button" onClick={showWholeWorld}><PixelToolIcon tool="explore" /><span>Explore</span></ToolButton><ToolButton disabled={!!busy} className="wander-button" label="Wander into a story" onClick={wander}><PixelToolIcon tool="wander" /><span>Wander</span></ToolButton><ToolButton disabled={!!busy} className="together-button" label="Build together" aria-pressed={panel==="together"} onClick={buildTogether}><PixelToolIcon tool="together" /><span>Together</span></ToolButton><ToolButton disabled={!!busy} className="paint-button" label="Paint" aria-pressed={panel === "paint"} onClick={showPaint}><PixelToolIcon tool="paint" /><span>Paint</span></ToolButton><ToolButton disabled={!!busy} className="note-button" label="Leave" aria-pressed={panel === "compose" && draft?.type !== "image"} onClick={() => draft ? resumeDraft() : startMemory()}><PixelToolIcon tool="note" /><span>Note</span></ToolButton><ToolButton disabled={!!busy} className="photo-button" label="Leave a photo" aria-pressed={panel === "compose" && draft?.type === "image"} onClick={() => startMemory(undefined, undefined, "image")}><PixelToolIcon tool="photo" /><span>Photo</span></ToolButton></CanvasDock> : null}
       </WorldCanvas></div> : <div className="world-loading"><img src="/favicon.svg" className="loading-mark" width="64" height="64" alt="" /><h2>{worldError ? "Couldn’t load the canvas" : "Loading canvas…"}</h2>{worldError ? <><p>{worldError}</p><button type="button" className="button button-primary" onClick={retry}>Try again<ArrowRight size={24} /></button></> : <span className="spinner" />}</div>}
       {panel && world ? <aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded ? " panel-expanded" : ""}`} aria-label={panelTitle}>
         <div className="panel-mobile-handle" />
         <div className="panel-header">
           <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel === "paint" || panel === "compose" || panel === "together" || panel === "people" ? <PixelToolIcon tool={panel === "paint" ? "paint" : panel === "compose" ? draft?.type === "image" ? "photo" : "note" : "together"} /> : <PanelIcon size={24} />}</span>{panelTitle}</h2>
           {panel === "inspect" ? <button type="button" className="icon-button panel-expand" aria-label={panelExpanded ? "Collapse panel" : "Expand panel"} onClick={() => setPanelExpanded(!panelExpanded)}>{panelExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
-          <button type="button" className="icon-button" aria-label="Close panel" onClick={closePanel}><X size={18} /></button>
+          <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18} /></button>
         </div>
-        <div className="panel-content" ref={panelContent}>{renderPanel()}</div>
+        <div className="panel-content" ref={panelContent} inert={!!busy} aria-busy={!!busy}>{renderPanel()}</div>
       </aside> : null}
     </div>
     <div className={`app-announcement${arrival || panel === "share" ? " visually-hidden" : ""}`} role="status" aria-live="polite">{announcement}</div>

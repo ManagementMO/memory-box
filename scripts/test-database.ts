@@ -114,14 +114,14 @@ async function main() {
     const fixtureNamespace = `test/${runId}`;
     const { data: job, error: jobError } = await db.from("index_jobs").select("id").eq("memory_id", text.id).eq("source_version", text.version).single();
     assert.ifError(jobError); assert.ok(job);
-    assert.ifError((await db.from("index_jobs").update({ status: "processing" }).eq("id", job.id)).error);
-    assert.equal(await completeIndexJob(job.id, text.version, text.body, basis, fixtureNamespace), true);
+    assert.ifError((await db.from("index_jobs").update({ status: "processing", attempts: 1, lease_until: new Date(Date.now() + 120_000).toISOString() }).eq("id", job.id)).error);
+    assert.equal(await completeIndexJob(job.id, text.version, 1, text.body, basis, fixtureNamespace), true);
     assert.ok((await searchMemories("xyzzynonword", basis, "garden", 12, fixtureNamespace)).results.some(r => r.memory.id === text.id));
     assert.ok(!(await searchMemories("xyzzynonword", orthogonal, "garden", 12, fixtureNamespace)).results.some(r => r.memory.id === text.id), "low cosine similarity is not retrieved");
     assert.ok(!(await searchMemories("xyzzynonword", basis, "garden", 12, "other/namespace")).results.some(r => r.memory.id === text.id), "embedding model namespaces cannot mix");
     const changed = await updateMemory(alice, text.id, text.version, { body: "A lighthouse picnic with my sister, wind, and marmalade." });
     assert.equal(changed.version, text.version + 1);
-    assert.equal(await completeIndexJob(job.id, text.version, "stale old text", basis, fixtureNamespace), false, "a stale index job cannot republish an old version");
+    assert.equal(await completeIndexJob(job.id, text.version, 1, "stale old text", basis, fixtureNamespace), false, "a stale index job cannot republish an old version");
     const conflictStarted = performance.now();
     await assert.rejects(() => updateMemory(alice, text.id, text.version, { body: "stale overwrite" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "PT409");
     assert.ok(performance.now() - conflictStarted < 10_000, "application version conflicts return promptly rather than retry as serialization failures");

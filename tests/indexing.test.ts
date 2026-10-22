@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IndexJob } from "../src/lib/server/database";
 import type { Memory } from "../src/lib/types";
 
-const deps = vi.hoisted(() => ({ lease: vi.fn(), complete: vi.fn(), fail: vi.fn(), embed: vi.fn(), describe: vi.fn(), admin: vi.fn(), rows: vi.fn(), scopedLease: vi.fn() }));
+const deps = vi.hoisted(() => ({ lease: vi.fn(), complete: vi.fn(), fail: vi.fn(), embed: vi.fn(), describe: vi.fn(), admin: vi.fn(), rows: vi.fn(), scopedLease: vi.fn(), readable: vi.fn(), download: vi.fn() }));
 vi.mock("../src/lib/server/database", () => ({
   getIndexJobs: deps.lease, completeIndexJob: deps.complete, failIndexJob: deps.fail,
-  getReadableAsset: vi.fn(), adminClient: deps.admin,
+  getReadableAsset: deps.readable, adminClient: deps.admin,
 }));
 vi.mock("../src/lib/server/ai", async importOriginal => ({
   ...await importOriginal<typeof import("../src/lib/server/ai")>(),
@@ -28,8 +28,8 @@ function job(overrides: Partial<Memory> = {}): IndexJob {
 beforeEach(() => {
   vi.clearAllMocks(); deps.lease.mockResolvedValue([]); deps.complete.mockResolvedValue(true);
   deps.fail.mockResolvedValue(undefined); deps.embed.mockResolvedValue([.2,.3]); deps.describe.mockResolvedValue("A white goose wearing a pink tie.");
-  deps.rows.mockReset(); deps.scopedLease.mockReset();
-  deps.admin.mockReturnValue({ from: () => ({ select: () => ({ in: deps.rows }) }), rpc: deps.scopedLease });
+  deps.rows.mockReset(); deps.scopedLease.mockReset(); deps.readable.mockReset(); deps.download.mockReset();
+  deps.admin.mockReturnValue({ from: () => ({ select: () => ({ in: deps.rows }) }), rpc: deps.scopedLease, storage: { from: () => ({ download: deps.download }) } });
 });
 
 function seedRows() {
@@ -82,7 +82,7 @@ describe("shared version-fenced index processing", () => {
     expect(await processLeasedIndexJobs([job()])).toEqual({ completed: 1, failed: 0, leased: 1 });
     expect(deps.lease).not.toHaveBeenCalled();
     expect(deps.embed).toHaveBeenCalledWith("A campus goose\nTerritorial stakeholder management.");
-    expect(deps.complete).toHaveBeenCalledWith("job-1",3,"Title: A campus goose\nAuthor's words: Territorial stakeholder management.\nScene: garden",[.2,.3],"test/versioned-model");
+    expect(deps.complete).toHaveBeenCalledWith("job-1",3,1,"Title: A campus goose\nAuthor's words: Territorial stakeholder management.\nScene: garden",[.2,.3],"test/versioned-model",null);
   });
   it("does not count a withdrawn or superseded completion as an accepted index", async () => {
     deps.complete.mockResolvedValue(false);
@@ -93,7 +93,7 @@ describe("shared version-fenced index processing", () => {
     deps.embed.mockRejectedValueOnce(new AIServiceError("timed_out",true)).mockRejectedValueOnce(new Error("private provider detail"));
     const other = { ...job(), id: "job-2" };
     expect(await processLeasedIndexJobs([job(),other])).toEqual({ completed: 0, failed: 2, leased: 2 });
-    expect(deps.fail.mock.calls).toEqual([["job-1","timed_out"],["job-2","indexing_failed"]]);
+    expect(deps.fail.mock.calls).toEqual([["job-1",1,"timed_out"],["job-2",1,"indexing_failed"]]);
     expect(deps.complete).not.toHaveBeenCalled();
   });
   it("retains trusted starter rasterization, captioning and version-fenced image completion", async () => {
@@ -102,7 +102,30 @@ describe("shared version-fenced index processing", () => {
     expect(deps.describe).toHaveBeenCalledTimes(1);
     const [bytes,mime] = deps.describe.mock.calls[0]; expect(bytes.byteLength).toBeGreaterThan(0); expect(mime).toBe("image/webp");
     expect(deps.embed).toHaveBeenCalledWith("A campus goose\nAn original drawing.\nA white goose wearing a pink tie.");
-    expect(deps.complete.mock.calls[0][2]).toContain("Machine-derived visual description: A white goose wearing a pink tie.");
+    expect(deps.complete.mock.calls[0][3]).toContain("Machine-derived visual description: A white goose wearing a pink tie.");
+    expect(deps.complete.mock.calls[0][6]).toBe("A white goose wearing a pink tie.");
     expect(deps.lease).not.toHaveBeenCalled();
+  });
+  it("retries an image when its private object download fails instead of completing a text-only index", async () => {
+    const image = job({ type: "image", isSeed: false, imageUrl: "/api/assets/00000000-0000-4000-8000-000000000001" });
+    deps.readable.mockResolvedValue({ path: "owner/photo.webp" });
+    deps.download.mockResolvedValue({ data: null, error: { message: "temporary storage outage" } });
+    expect(await processLeasedIndexJobs([image])).toEqual({ completed: 0, failed: 1, leased: 1 });
+    expect(deps.complete).not.toHaveBeenCalled();expect(deps.embed).not.toHaveBeenCalled();
+    expect(deps.fail).toHaveBeenCalledWith("job-1",1,"indexing_failed");
+  });
+  it("does not publish a captionless index when the image is no longer readable", async () => {
+    const image = job({ type: "image", isSeed: false, imageUrl: "/api/assets/00000000-0000-4000-8000-000000000001" });
+    deps.readable.mockResolvedValue(null);
+    expect(await processLeasedIndexJobs([image])).toEqual({ completed: 0, failed: 1, leased: 1 });
+    expect(deps.complete).not.toHaveBeenCalled();expect(deps.describe).not.toHaveBeenCalled();
+  });
+  it("sends a private image caption only through its fenced completion, without mutating shared assets", async () => {
+    const image = job({ type: "image", isSeed: false, imageUrl: "/api/assets/00000000-0000-4000-8000-000000000001" });
+    deps.readable.mockResolvedValue({ path: "owner/photo.webp" });
+    deps.download.mockResolvedValue({ data: new Blob(["sanitized fixture"]), error: null });
+    expect(await processLeasedIndexJobs([image])).toEqual({ completed: 1, failed: 0, leased: 1 });
+    expect(deps.complete.mock.calls[0].slice(0,3)).toEqual(["job-1",3,1]);
+    expect(deps.complete.mock.calls[0][6]).toBe("A white goose wearing a pink tie.");
   });
 });

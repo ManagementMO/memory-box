@@ -1,10 +1,17 @@
 import { afterEach,describe,expect,it,vi } from "vitest";
 
 vi.mock("../src/lib/client/supabase",()=>({guestSession:async()=>({access_token:"synthetic-unit-test-token"}),getBrowserSupabase:()=>({})}));
-import { api,ApiError } from "../src/lib/client/api";
+import { api,ApiError,publicApi } from "../src/lib/client/api";
 
 afterEach(()=>vi.unstubAllGlobals());
 describe("client cooldown transport",()=>{
+  it("forwards public request cancellation without starting an authenticated session",async()=>{
+    const controller=new AbortController();
+    const fetch=vi.fn(async()=>new Response(JSON.stringify({revision:3}),{status:200}));
+    vi.stubGlobal("fetch",fetch);
+    await expect(publicApi("/api/world",{signal:controller.signal})).resolves.toEqual({revision:3});
+    expect(fetch).toHaveBeenCalledWith("/api/world",{signal:controller.signal,cache:"no-store"});
+  });
   it("retains a structured turn and accurate retry metadata from a real-shaped429 response",async()=>{
     const timing={serverTime:"2026-10-22T04:00:00Z",nextPaintAt:"2026-10-22T04:00:03.500Z",cooldownSeconds:15};
     vi.stubGlobal("fetch",vi.fn(async()=>new Response(JSON.stringify({...timing,error:"Your preview is still here.",code:"paint_cooldown",retryAfterMs:3500}),{status:429,headers:{"Retry-After":"4"}})));

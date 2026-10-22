@@ -32,9 +32,37 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const viewport = useRef({ width: 0, height: 0 }), initialized = useRef(false);
   const pointers = useRef(new Map<number, Point>()), gesture = useRef<Gesture | null>(null), stroke = useRef<Pixel[]>([]);
   const suppressCardClickUntil = useRef(0);
+  const hadPeerPaint = useRef(false);
   const latest = useRef({ world, pending, brush, onCameraChange, peers, onCursor });
   latest.current = { world, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
+
+  const drawCursors = useCallback(() => {
+    const element = board.current, cursorTarget = cursorCanvas.current, cursors = cursorTarget?.getContext("2d");
+    if (!element || !cursorTarget || !cursors) return;
+    const width = element.clientWidth, height = element.clientHeight, ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.round(width * ratio), pixelHeight = Math.round(height * ratio);
+    if (cursorTarget.width !== pixelWidth || cursorTarget.height !== pixelHeight) { cursorTarget.width = pixelWidth; cursorTarget.height = pixelHeight; }
+    cursors.setTransform(1, 0, 0, 1, 0, 0); cursors.clearRect(0, 0, cursorTarget.width, cursorTarget.height); cursors.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const c = camera.current, data = latest.current, now = Date.now();
+    if (!data.peers.length) return;
+    const cursorFont = `500 11px ${getComputedStyle(element).fontFamily}`;
+    for (const peer of data.peers) {
+      const x = peer.x * c.z + c.x, y = peer.y * c.z + c.y, age = Math.max(0, now - peer.updatedAt);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > width || y > height || age > 12_000) continue;
+      cursors.save(); cursors.translate(x, y); cursors.globalAlpha = age > 7000 ? .55 : 1;
+      cursors.fillStyle = peer.color; cursors.strokeStyle = "#FFFFFF"; cursors.lineWidth = 1.6;
+      cursors.beginPath(); cursors.moveTo(0, 0); cursors.lineTo(3, 0); cursors.lineTo(3, 3); cursors.lineTo(6, 3); cursors.lineTo(6, 6); cursors.lineTo(9, 6); cursors.lineTo(9, 9); cursors.lineTo(12, 9); cursors.lineTo(12, 12); cursors.lineTo(7, 12); cursors.lineTo(7, 16); cursors.lineTo(4, 16); cursors.lineTo(4, 20); cursors.lineTo(0, 20); cursors.closePath(); cursors.fill(); cursors.stroke();
+      const action = peer.tool === "paint" ? " · painting" : peer.tool === "note" ? " · adding a note" : "";
+      const label = `${peer.name}${c.z > .35 ? action : ""}`;
+      cursors.font = cursorFont;
+      const labelWidth = Math.min(cursors.measureText(label).width + 16, Math.max(60, width - 16));
+      const preferredX = x + labelWidth + 12 > width ? x - labelWidth + 6 : x + 9;
+      const lx = Math.max(4, Math.min(width - labelWidth - 4, preferredX)) - x, ly = y + 48 > height ? -30 : 21;
+      cursors.fillStyle = peer.color; cursors.beginPath(); cursors.roundRect(lx, ly, labelWidth, 25, 8); cursors.fill(); cursors.stroke();
+      cursors.fillStyle = "#FFFFFF"; cursors.fillText(label, lx + 8, ly + 16, labelWidth - 16); cursors.restore();
+    }
+  }, []);
 
   const draw = useCallback(() => {
     const target = canvas.current, element = board.current;
@@ -76,28 +104,19 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       for (let y = Math.floor(top / GRID_SIZE) * GRID_SIZE; y <= bottom; y += GRID_SIZE) { context.moveTo(left, y); context.lineTo(right, y); }
       context.stroke();
     }
-    const cursorTarget = cursorCanvas.current, cursors = cursorTarget?.getContext("2d");
-    if (!cursorTarget || !cursors) return;
-    if (cursorTarget.width !== target.width || cursorTarget.height !== target.height) { cursorTarget.width = target.width; cursorTarget.height = target.height; }
-    cursors.setTransform(1, 0, 0, 1, 0, 0); cursors.clearRect(0, 0, cursorTarget.width, cursorTarget.height); cursors.setTransform(ratio, 0, 0, ratio, 0, 0);
-    if (!data.peers.length) return;
-    const cursorFont = `500 11px ${getComputedStyle(element).fontFamily}`;
-    for (const peer of data.peers) {
-      const x = peer.x * c.z + c.x, y = peer.y * c.z + c.y, age = Math.max(0, now - peer.updatedAt);
-      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > width || y > height || age > 12_000) continue;
-      cursors.save(); cursors.translate(x, y); cursors.globalAlpha = age > 7000 ? .55 : 1;
-      cursors.fillStyle = peer.color; cursors.strokeStyle = "#FFFFFF"; cursors.lineWidth = 1.6;
-      cursors.beginPath(); cursors.moveTo(0, 0); cursors.lineTo(3, 0); cursors.lineTo(3, 3); cursors.lineTo(6, 3); cursors.lineTo(6, 6); cursors.lineTo(9, 6); cursors.lineTo(9, 9); cursors.lineTo(12, 9); cursors.lineTo(12, 12); cursors.lineTo(7, 12); cursors.lineTo(7, 16); cursors.lineTo(4, 16); cursors.lineTo(4, 20); cursors.lineTo(0, 20); cursors.closePath(); cursors.fill(); cursors.stroke();
-      const action = peer.tool === "paint" ? " · painting" : peer.tool === "note" ? " · adding a note" : "";
-      const label = `${peer.name}${c.z > .35 ? action : ""}`;
-      cursors.font = cursorFont;
-      const labelWidth = Math.min(cursors.measureText(label).width + 16, Math.max(60, width - 16));
-      const preferredX = x + labelWidth + 12 > width ? x - labelWidth + 6 : x + 9;
-      const lx = Math.max(4, Math.min(width - labelWidth - 4, preferredX)) - x, ly = y + 48 > height ? -30 : 21;
-      cursors.fillStyle = peer.color; cursors.beginPath(); cursors.roundRect(lx, ly, labelWidth, 25, 8); cursors.fill(); cursors.stroke();
-      cursors.fillStyle = "#FFFFFF"; cursors.fillText(label, lx + 8, ly + 16, labelWidth - 16); cursors.restore();
-    }
-  }, []);
+    drawCursors();
+  }, [drawCursors]);
+
+  const drawPeers = useCallback(() => {
+    const hasPaint = latest.current.peers.some(peer => peer.tool === "paint" && !!peer.stroke?.length);
+    const target = canvas.current, element = board.current, ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const resized = !!target && !!element && (target.width !== Math.round(element.clientWidth * ratio) || target.height !== Math.round(element.clientHeight * ratio));
+    // A disappearing preview needs one final artwork redraw to erase it.
+    // Cursor movement and label aging use their existing transparent canvas only.
+    if (hasPaint || hadPeerPaint.current || resized) draw();
+    else drawCursors();
+    hadPeerPaint.current = hasPaint;
+  }, [draw, drawCursors]);
 
   const applyCamera = useCallback(() => {
     const element = board.current;
@@ -189,12 +208,13 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     else if (command.points?.length) framePoints(command.points, command.type === "focus");
   }, [command, entryView, framePoints, animateCamera]);
 
-  useEffect(() => { draw(); }, [world.pixels, pending, brush?.cells, brush?.enabled, peers, draw]);
+  useEffect(() => { draw(); }, [world.pixels, pending, brush?.cells, brush?.enabled, draw]);
+  useEffect(() => { drawPeers(); }, [peers, drawPeers]);
   useEffect(() => {
     if (!peers.length) return;
-    const timer = setInterval(draw, 500);
+    const timer = setInterval(drawPeers, 500);
     return () => clearInterval(timer);
-  }, [peers.length, draw]);
+  }, [peers.length, drawPeers]);
   useEffect(() => {
     const element = board.current;
     if (!element) return;

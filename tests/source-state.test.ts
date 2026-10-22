@@ -22,6 +22,13 @@ describe("current source projection", () => {
     expect(answerSourcesChanged({ first: 1 }, [{ ...original, version: 2 }])).toBe(true);
     expect(answerSourcesChanged({ first: 1 }, [])).toBe(true);
   });
+  it("invalidates an open answer when derived image evidence changes at the same source version", () => {
+    const source = { ...original, type: "image", imageDescription: "A red bicycle." } as Memory;
+    const changed = { ...source, imageDescription: "A blue bicycle." };
+    expect(answerSourcesChanged({ first: 1 }, [source], [source])).toBe(false);
+    expect(answerSourcesChanged({ first: 1 }, [changed], [source])).toBe(true);
+    expect(answerSourcesChanged({ first: 1 }, [{ ...source, indexStatus: "ready" }], [source])).toBe(false);
+  });
   it("counts distinct eligible citations, not retrieved candidates", () => {
     expect(citedSourceCount([{ sourceIds: ["first", "first"] }, { sourceIds: ["first", "missing"] }], [original])).toBe(1);
   });
