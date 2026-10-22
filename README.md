@@ -13,12 +13,12 @@ Memory Box combines a large sparse collaborative pixel world with an attributed 
 ## Try the loop
 
 1. Open the living mosaic. Drag, pinch or zoom; choose **Wander** to stumble into an actual original. **World** fits the complete occupied world, including faraway contributions.
-2. Choose **Build together** to join a live painter, or start with an unfinished landmark: the night train, bread bus, very large cat, goose or unofficial soup waiting room.
+2. Choose **Build together** to join a live painter, or start with the campus goose, pink tie, imaginary MC maze, sauce debate or ION-inspired train. Older landmarks remain elsewhere in the world.
 3. Choose **Paint**, draw a preview, then **Add my pixels**. Visitors can see real cursors and faint temporary brush strokes before you commit. You can also leave a small goose, cat, carriage or other stamp. Accepted changes are durable and arrive in other visitors' browsers through Supabase Realtime.
 4. Leave text, a PNG/JPEG/WebP image, or a link at a chosen place. Give yourself a name if you like.
 5. Open someone else's memory and choose **Build on this**. Your contribution gets its own author and a thread back to the original.
-6. Use the quiet **Find / ask** entry for exact words or meaning. Try “childhood road trips.”
-7. Switch to **Ask**, enter “What do these memories say about music and family?”, then submit with **Ask the box**. The box selects passages in people's own words and shows recorded build-on connections, with links to the originals. A question with insufficient material gets an honest empty answer.
+6. Use the quiet **Find / ask** entry for exact words or meaning. Try “pink tie” or “co-op interview.”
+7. Switch to **Ask**, enter “What qualifications does the campus goose claim?”, then submit with **Ask the box**. The box selects passages in people's own words and shows recorded build-on connections, with links to the originals. A question with insufficient material gets an honest empty answer.
 
 The additive living-world expansion contains 84 distinct fictional originals, eight original illustrations and 5,081 editable pixel cells, beside the original ten starters. They are marked examples, not evidence of real community activity. Online visitor counts and moving cursors come only from connected browser sessions; no simulated visitors run in the app.
 
@@ -81,6 +81,8 @@ The private function secret file contains `EMBEDDING_SECRET`, matching the app e
 `npm run seed` preserves existing visitor paint and memories on repeat runs. Server credentials belong only in server/CLI environments. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` go to the browser.
 
 The optional living-mosaic expansion is prepared separately with `npx tsx scripts/seed-living-world.ts --sql ../work/living-world.sql`. Review that generated transaction, deploy its bundled illustrations, then apply it with `supabase db query --linked --file ../work/living-world.sql`. It only inserts missing cells/originals, locks the authoritative world row, and records one honest starter event. An exact operation marker makes successful reruns no-ops, including after later visitor edits. It never recreates a removed starter on a successful repeat. Normal indexing budgets still apply, so new words are immediately searchable while semantic/image indexing can continue in the background.
+
+The separate Waterloo expansion uses `npx tsx scripts/seed-waterloo-world.ts --sql ../work/waterloo-world.sql`, followed by the same review/deploy/apply workflow. It adds 24 originals, four illustrations and 7,170 editable cells without changing the earlier seed payload. For its explicit initial semantic backfill, `npx tsx scripts/index-waterloo-seed.ts --run` first verifies every persisted source's exact seed provenance, then leases only those 24 IDs in batches of four under a separate bounded operator allowance of 24/day. It uses the same source-version checks and image/embedding processor. Public indexing remains limited to 80/day; successful backfill repeats lease no jobs. This command loads ignored local server configuration and must be operated only against the reviewed target.
 
 ## Validate
 

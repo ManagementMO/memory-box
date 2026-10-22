@@ -122,6 +122,7 @@ export function MemoryBoxApp() {
     const scene = sceneById(id); cameraTo([{ x: scene.x - 240, y: scene.y - 185, width: 480, height: 370 }], "frame");
   };
   const openMemory = (id: string, fromSearch = false, fromDraft = false) => {
+    setAnnouncement("");
     setBackToDraft(fromDraft && !!draft);
     const memory = world?.memories.find((item) => item.id === id);
     if (fromSearch && !backToSearch) { searchCamera.current = cameraView.current ? { ...cameraView.current } : null; searchOrigin.current = { id, scroll: panelScroller.current?.scrollTop ?? 0, pageScroll: window.scrollY, citation: !!document.activeElement?.classList.contains("citation") }; }
@@ -154,6 +155,7 @@ export function MemoryBoxApp() {
     else setSelectedId(null);
   };
   const showPaint = () => {
+    setAnnouncement("");
     setPanel("paint"); setPending(null); setSelectedId(null); setBackToSearch(false); setBackToDraft(false); setFormError("");
     const view = cameraView.current;
     if (paintMode === "draw" && view && view.z < 1.7) setCommand(old => ({ key: old.key + 1, type: "restore", camera: { ...view, ...zoomCameraAt(view, 1.7 / view.z, { x: view.width / 2, y: view.height / 2 }) } }));
@@ -247,7 +249,7 @@ export function MemoryBoxApp() {
     catch (cause) { setFormError(cause instanceof Error ? cause.message : "That paint couldn’t be undone."); }
     finally { setBusy(""); }
   }
-  const changeBrush = (cells: Pixel[]) => { setBrushPixels(mergePaintCells([], cells)); brushOperation.current = null; setFormError(""); setAnnouncement(`${cells.length} pixels in your preview. Add them when you’re ready.`); };
+  const changeBrush = (cells: Pixel[]) => { setBrushPixels(mergePaintCells([], cells)); brushOperation.current = null; setFormError(""); setAnnouncement(""); };
   const clearBrush = () => { setBrushPixels([]); brushOperation.current = null; setFormError(""); setAnnouncement("Your preview is cleared. The shared picture is unchanged."); };
   async function publishBrush() {
     if (!brushPixels.length || busy || !world) return;

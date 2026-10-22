@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { Memory } from "../types";
-import { adminClient, completeIndexJob, failIndexJob, getIndexJobs, getReadableAsset } from "./database";
+import { adminClient, completeIndexJob, failIndexJob, getIndexJobs, getReadableAsset, type IndexJob } from "./database";
 import { AIServiceError, describeImage, embedText, getAIModels } from "./ai";
 import { trustedSeedImagePath } from "./trusted-seed-image";
 
@@ -24,6 +24,12 @@ async function imageForMemory(memory: Memory) {
 
 export async function processIndexJobs(limit = 2) {
   const jobs = await getIndexJobs(Math.min(limit, 4));
+  return processLeasedIndexJobs(jobs);
+}
+
+/** Process only jobs already leased by an authorized caller. Source-version
+ * completion remains the authority; this does not obtain or bypass a lease. */
+export async function processLeasedIndexJobs(jobs: IndexJob[]) {
   let completed = 0;
   let failed = 0;
   await Promise.all(jobs.map(async job => {

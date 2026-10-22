@@ -153,7 +153,9 @@
  .living-mosaic-app .footer-signature { display: none; }
  .living-mosaic-app .app-announcement:not(:empty) { left: 12px; right: 12px; bottom: 165px; max-width: none; font-size: 11px; padding: 8px 10px; }
  .living-mosaic-app .world-change { left: 10px; bottom: 132px; max-width: 240px; font-size: 10px; }
- .living-mosaic-app .canvas-paint-bar { top: 76px; left: 10px; right: 10px; transform: none; width: auto; max-width: none; padding: 8px; gap: 6px; }
+ .living-mosaic-app .canvas-paint-bar { top: 76px; left: 10px; right: 10px; transform: none; width: auto; max-width: none; padding: 8px; gap: 6px; display: grid; grid-template-columns: minmax(0,1fr) 30px auto 32px; }
+ .living-mosaic-app .canvas-paint-bar>.form-error { grid-column: 1/-1; margin: 0; }
+ .living-mosaic-app .world-board:has(.canvas-paint-bar,.placement-bar) .mosaic-heading { display: none; }
  .living-mosaic-app .canvas-paint-bar>.paint-preview-count { flex: 1; font-size: 10px; }
  .living-mosaic-app .canvas-paint-bar .button { font-size: 11px; min-height: 36px; }
  .living-mosaic-app .canvas-paint-bar .icon-button { width: 32px; min-width: 32px; }

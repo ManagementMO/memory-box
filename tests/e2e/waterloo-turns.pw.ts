@@ -109,7 +109,7 @@ test("paint turns survive reload, preserve rejected sketches and leave notes ope
   });
   try {
     await stagePixel(page, world.runId);
-    const stalePoint = await stagePixel(stale, world.runId);
+    await stagePixel(stale, world.runId);
     await expect.poll(() => delayedTurnReads).toBeGreaterThan(0);
     await expect(bar(stale)).toHaveAttribute("data-paint-wait", "0");
     await expect(share(stale)).toBeEnabled();
@@ -159,7 +159,11 @@ test("paint turns survive reload, preserve rejected sketches and leave notes ope
     releaseTurnRead();
     // The older ready GET cannot undo a newer rejected save's deadline.
     await expect(bar(stale)).toHaveAttribute("data-paint-wait", /^[1-9]\d*$/);
-    await stale.mouse.click(stalePoint.x + 18, stalePoint.y);
+    await expect(board(stale)).toHaveAttribute("data-tool", "brush");
+    // Error feedback can wrap the mobile bar over the previous screen point.
+    // Reacquire an actual unobstructed surface after that layout change.
+    const nextPoint = await drawingPoint(stale);
+    await stale.mouse.click(nextPoint.x + 18, nextPoint.y);
     await expect(bar(stale).locator(".paint-preview-count")).toContainText("2 pixels");
     await expect(share(stale)).toBeDisabled();
     expect(stalePosts).toBe(1);
