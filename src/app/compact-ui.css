@@ -64,6 +64,10 @@
 .living-mosaic-app .presence-stack > span:not(.self-dot):nth-child(n+2) { display: none; }
 .living-mosaic-app .meet-here-button { top: 50px; right: 10px; min-height: 34px; gap: 5px; padding: 6px 9px; border-radius: 5px; font: 500 14px/1.2 var(--font-display); box-shadow: var(--ui-shadow); }
 .living-mosaic-app .meet-here-button > .pixel-icon { width: 16px; height: 16px; }
+/* One intrinsic row keeps the sharing action aligned as the count changes. */
+.living-mosaic-app .world-social-controls { --social-control-height: 34px; top: 8px; right: 10px; z-index: 16; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: max-content; max-width: calc(100% - 20px); gap: 6px; }
+.living-mosaic-app .world-social-controls > :is(.meet-here-button, .world-presence) { position: static; top: auto; right: auto; z-index: auto; width: 100%; min-width: 0; height: var(--social-control-height); min-height: var(--social-control-height); justify-content: center; gap: 5px; padding: 4px 7px; border: 1px solid var(--ui-edge); border-radius: 5px; color: var(--ui-ink); background: var(--ui-paper); box-shadow: var(--ui-shadow); font: 500 12px/1.2 var(--font-display); white-space: nowrap; }
+.living-mosaic-app .world-social-controls > button:hover:not(:disabled) { background: var(--ui-wash); }
 .living-mosaic-app .world-change { max-width: 240px; padding: 7px 9px; border-radius: 5px; font-size: 11px; }
 .living-mosaic-app .mosaic-invitation { border-radius: 5px; padding: 8px 10px; }
 .living-mosaic-app .shared-arrival { top: 56px; left: 10px; width: 280px; border-radius: 6px; padding: 10px; box-shadow: var(--ui-shadow); }
@@ -221,6 +225,8 @@
   .living-mosaic-app :is(.canvas-levels, .canvas-zoom)::before { inset-block: 6px; }
   .living-mosaic-app .world-presence { top: 4px; right: 8px; min-height: 44px; padding: 4px 6px; }
   .living-mosaic-app .meet-here-button { top: 52px; right: 8px; min-height: 44px; padding: 6px 8px; }
+  .living-mosaic-app .world-social-controls { --social-control-height: 44px; top: 4px; right: 8px; max-width: calc(100% - 16px); }
+  .living-mosaic-app .world-social-controls:has(.meet-here-button) { top: 52px; }
   .living-mosaic-app .canvas-zoom { right: 8px; bottom: max(74px, calc(env(safe-area-inset-bottom) + 66px)); }
   .living-mosaic-app .canvas-zoom > button, .living-mosaic-app .pan-controls > button { min-width: 44px; width: 44px; height: 44px; min-height: 44px; }
   .living-mosaic-app .pan-controls { bottom: 45px; }
@@ -258,6 +264,7 @@
   .living-mosaic-app .canvas-levels button { font-size: 12px; padding-inline: 5px; }
 }
 @media (pointer: coarse) and (min-width: 701px) {
+  .living-mosaic-app .world-social-controls { --social-control-height: 44px; }
   .living-mosaic-app .canvas-zoom > button, .living-mosaic-app .pan-controls > button,
   .living-mosaic-app .canvas-levels button, .living-mosaic-app .context-panel button { min-height: 44px; }
   .living-mosaic-app .canvas-zoom > button, .living-mosaic-app .pan-controls > button { min-width: 44px; }
