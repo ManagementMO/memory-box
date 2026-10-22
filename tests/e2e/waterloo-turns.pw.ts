@@ -175,7 +175,7 @@ test("paint turns survive reload, preserve rejected sketches and leave notes ope
     expect(persisted.body.nextPaintAt).toBe(receipt.nextPaintAt);
     expect(remaining(persisted.body)).toBeGreaterThan(0);
     await page.getByRole("button", { name: "Paint", exact: true }).click();
-    await expect(bar(page)).toHaveAttribute("data-paint-wait", /^[1-9]\d*$/);
+    await expect(page.locator(".paint-turn-status")).toHaveAttribute("data-paint-wait", /^[1-9]\d*$/);
 
     await page.getByRole("button", { name: "Leave", exact: true }).click();
     const title = "Turn note " + world.runId.slice(0, 8);

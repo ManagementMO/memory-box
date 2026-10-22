@@ -36,6 +36,7 @@ import { memoryContributionMark, paintContributionMark, type ContributionMark } 
 
 type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | null;
 type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
+type SavedPaint = {operationId:string;buildId:string|null};
 const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", build: "Build here", people: "Who’s here", share: "Meet here" };
 const relativeDate = (date: string) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date));
 function revealMobilePanel() {
@@ -57,7 +58,7 @@ export function MemoryBoxApp() {
   const [query, setQuery] = useState(""), [searchMode, setSearchMode] = useState<"find" | "ask">("find"), [scope, setScope] = useState<"all" | "scene">("all");
   const [searchData, setSearchData] = useState<SearchResponse | AnswerResponse | null>(null), [searchBusy, setSearchBusy] = useState(false), [searchError, setSearchError] = useState("");
   const [answerInvalid, setAnswerInvalid] = useState(false), [backToSearch, setBackToSearch] = useState(false);
-  const [lastPaint, setLastPaint] = useState<string | null>(null), [justPublished, setJustPublished] = useState<string | null>(null);
+  const [lastPaint, setLastPaint] = useState<SavedPaint | null>(null), [justPublished, setJustPublished] = useState<string | null>(null);
   const [contribution, setContribution] = useState<ContributionMark | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false), [profileName, setProfileName] = useState("");
   const [panelExpanded, setPanelExpanded] = useState(false);
@@ -118,6 +119,7 @@ export function MemoryBoxApp() {
   const selected = world?.memories.find((memory) => memory.id === selectedId);
   const parent = world?.memories.find((memory) => memory.id === draft?.inspiredBy);
   const joinedBuild = world?.memories.find(memory=>memory.id===joinedBuildId);
+  const lastPaintSource=lastPaint?.buildId&&world?.memories.some(memory=>memory.id===lastPaint.buildId)?lastPaint.buildId:undefined;
   const invitations = useMemo(()=>openBuildInvitations(world?.memories??[]),[world]);
   const active = sceneById(activeScene);
   const campusAvailable=!!world&&!!campusArrival(world.memories);
@@ -259,6 +261,11 @@ export function MemoryBoxApp() {
     if(draft&&!draft.editId&&draft.inspiredBy===selected.id&&draft.type===type)resumeDraft();
     else startMemory(selected.id,undefined,type);
   };
+  const useLandmarkTool = (tool:"paint"|"text"|"image") => {
+    if(tool==="paint")showPaint();else startMemory(undefined,undefined,tool);
+    setActiveScene(landmark.sceneId);
+    cameraTo([{x:landmark.x,y:landmark.y,width:landmark.width,height:landmark.height}],"frame");
+  };
   const resumeDraft = () => {
     setPanel("compose"); setPending(null); setBackToDraft(false); setBackToSearch(false);
     const original=world?.memories.find(memory=>memory.id===draft?.inspiredBy);
@@ -326,7 +333,7 @@ export function MemoryBoxApp() {
         const cells = shapePixels(pending.shape, pending.color, pending.x, pending.y);
         const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId: pending.opId, sceneId: sceneForPoint(pending.x + 36, pending.y + 36), cells }) });
         acceptPaintTurn(result);
-        setLastPaint(result.operationId); await refresh(); setPending(null); setPanel("paint"); setActiveScene(sceneForPoint(pending.x + 36, pending.y + 36));
+        setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); await refresh(); setPending(null); setPanel("paint"); setActiveScene(sceneForPoint(pending.x + 36, pending.y + 36));
         setContribution(paintContributionMark(result.operationId, cells));
         setAnnouncement(`${cells.length} ${cells.length === 1 ? "pixel" : "pixels"} added to the canvas.`);
       } else if (draft) {
@@ -345,7 +352,7 @@ export function MemoryBoxApp() {
       }
     } catch (cause) { if(pending.kind==="paint")handlePaintRejection(cause);setFormError(cause instanceof Error ? cause.message : "This didn’t save. Your draft is still here."); }
     finally { setBusy(""); }
-  }, [pending, world, identity, busy, canWrite, draft, refresh,paintWait,acceptPaintTurn,handlePaintRejection]);
+  }, [pending, world, identity, busy, canWrite, draft, refresh,paintWait,acceptPaintTurn,handlePaintRejection,joinedBuildId]);
 
   async function saveEdit() {
     if (!draft?.editId || busy) return;
@@ -367,7 +374,7 @@ export function MemoryBoxApp() {
   async function undoPaint() {
     if (!lastPaint || busy) return;
     setBusy("Undoing pixels…"); setFormError("");
-    try { await api("/api/paint/undo", { method: "POST", body: JSON.stringify({ operationId: lastPaint }) }); await refresh(); setLastPaint(null); setAnnouncement("Your last paint was undone. Other people’s later changes stay in place."); }
+    try { await api("/api/paint/undo", { method: "POST", body: JSON.stringify({ operationId: lastPaint.operationId }) }); await refresh(); setLastPaint(null); setAnnouncement("Your last paint was undone. Other people’s later changes stay in place."); }
     catch (cause) { setFormError(cause instanceof Error ? cause.message : "That paint couldn’t be undone."); }
     finally { setBusy(""); }
   }
@@ -384,7 +391,7 @@ export function MemoryBoxApp() {
       const middle = brushPixels[Math.floor(brushPixels.length / 2)];
       const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId, sceneId: sceneForPoint(middle.x * GRID_SIZE, middle.y * GRID_SIZE), cells: brushPixels.map(({ x, y, color }) => ({ x, y, color })) }) });
       acceptPaintTurn(result);
-      setLastPaint(result.operationId); setBrushPixels([]); brushOperation.current = null; await refresh();
+      setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); setBrushPixels([]); brushOperation.current = null; await refresh();
       setContribution(paintContributionMark(result.operationId, brushPixels));
       setAnnouncement(`${brushPixels.length} ${brushPixels.length === 1 ? "pixel" : "pixels"} added to the canvas.`);
     } catch (cause) { handlePaintRejection(cause);setFormError(cause instanceof Error ? cause.message : "These pixels didn’t save. Your preview is still here."); }
@@ -525,7 +532,7 @@ export function MemoryBoxApp() {
         <button type="button" className="text-button" onClick={revealCanvas}><Paintbrush size={16} />Draw on canvas<ArrowUpRight size={16} /></button>
       </> : <div className="paint-kit-place"><button type="button" className="button button-primary button-full" onClick={startPaintPlacement} disabled={world.paintingPaused}>Choose its place<ArrowRight size={16} /></button></div>}
       {world.paintingPaused ? <p className="form-error">Painting is paused for a moment. Memories are still open.</p> : null}
-      {lastPaint ? <div className="paint-state"><p className="success-label"><CheckCheck size={16} />Your last pixels are shared.</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={() => startMemory(joinedBuild?.isBuildInvitation?joinedBuild.id:undefined, lastPaint)}><StickyNote size={15} />Leave the thought behind it</button><button type="button" className="text-button undo-link" disabled={!!busy || !canWrite} onClick={() => void undoPaint()}><Undo2 size={14} />Undo my last paint</button></div></div> : null}
+      {lastPaint ? <div className="paint-state"><p className="success-label"><CheckCheck size={16} />Your last pixels are shared.</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={() => startMemory(lastPaintSource, lastPaint.operationId)}><StickyNote size={15} />Leave the thought behind it</button><button type="button" className="text-button undo-link" disabled={!!busy || !canWrite} onClick={() => void undoPaint()}><Undo2 size={14} />Undo my last paint</button></div></div> : null}
       {events.length ? <><div className="section-label">Recent paint</div><div className="recent-contributors">{events.map(event => <div className="activity-event" key={event.id}><strong>@{event.authorName}</strong><p>{event.description}</p><span>{relativeDate(event.createdAt)}</span></div>)}</div></> : null}
       {formError ? <p className="form-error" role="alert">{formError}</p> : null}
     </div>;
@@ -545,14 +552,14 @@ export function MemoryBoxApp() {
       <button type="button" className="button button-primary button-full" onClick={startBuildHere}><Plus size={16}/>Start a build here</button>
       <div className="open-build-list">{invitations.length?<><h3 className="section-label">Open builds</h3>{invitations.map(memory=><MemoryResult key={memory.id} memory={memory} onOpen={()=>joinBuild(memory.id)}/>)}</>:<p className="panel-copy">No open invitations yet.</p>}</div>
       {presence.peers.some(peer=>peer.tool==="paint")?<button type="button" className="text-button live-build-link" onClick={followLivePainter}><Paintbrush size={16}/>Visit a live painter<ArrowUpRight size={14}/></button>:null}
-      <h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={showPaint}><Paintbrush size={16}/>Paint here</button><button type="button" className="button button-secondary" onClick={()=>startMemory()}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>startMemory(undefined,undefined,"image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div>
+      <h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("paint")}><Paintbrush size={16}/>Paint there</button><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("text")}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>useLandmarkTool("image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div>
     </div>;
     if(panel==="build")return <BuildWorkbench memory={selected} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
     if (panel === "compose" && draft) return <MemoryComposer draft={draft} onChange={next => { setDraft(next); setFormError(""); }} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => { draftScene.current = activeScene; openMemory(id, false, true); }} onPreview={previewMemory} busy={busy} error={formError} />;
     if (panel === "inspect") return renderInspector();
     if (panel === "search") return renderSearch();
     if (panel === "paint") return renderPaint();
-    if (panel === "scene") { const memories = world.memories.filter((memory) => memory.sceneId === activeScene); return <div><h3 className="panel-lead">{active.title}</h3><div className="panel-actions"><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={16} />Paint here</button><button type="button" className="button button-secondary" onClick={() => startMemory(undefined, lastPaint ?? undefined)}><Plus size={16} />Leave a memory</button></div>{lastPaint ? <div className="saved-paint"><CheckCheck size={16} /><div><strong>Pixels saved</strong><button type="button" className="text-button" onClick={() => startMemory(undefined, lastPaint)}>Attach a memory<ArrowRight size={16} /></button></div></div> : null}<button type="button" className="text-button scene-ask" onClick={() => void runSearch("ask", `What connects the memories in ${active.title}?`, "scene")}><MessageCircle size={16} />Ask about this scene<ArrowUpRight size={16} /></button><div className="section-label">{memories.length} memories</div>{memories.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</div>; }
+    if (panel === "scene") { const memories = world.memories.filter((memory) => memory.sceneId === activeScene); return <div><h3 className="panel-lead">{active.title}</h3><div className="panel-actions"><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={16} />Paint here</button><button type="button" className="button button-secondary" onClick={() => startMemory(lastPaintSource, lastPaint?.operationId)}><Plus size={16} />Leave a memory</button></div>{lastPaint ? <div className="saved-paint"><CheckCheck size={16} /><div><strong>Pixels saved</strong><button type="button" className="text-button" onClick={() => startMemory(lastPaintSource, lastPaint.operationId)}>Attach a memory<ArrowRight size={16} /></button></div></div> : null}<button type="button" className="text-button scene-ask" onClick={() => void runSearch("ask", `What connects the memories in ${active.title}?`, "scene")}><MessageCircle size={16} />Ask about this scene<ArrowUpRight size={16} /></button><div className="section-label">{memories.length} memories</div>{memories.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</div>; }
     if (panel === "browse") return <div><label className="field field-inline">Show<select value={scope} onChange={(event) => setScope(event.target.value as "all" | "scene")}><option value="all">Whole box</option><option value="scene">{active.title}</option></select></label>{world.memories.filter((memory) => scope === "all" || memory.sceneId === activeScene).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}{!world.memories.length ? <div className="empty-state"><StickyNote size={24} /><h3>No contributions yet</h3><button type="button" className="button button-primary" onClick={() => startMemory()}>Leave something<Plus size={16} /></button></div> : null}</div>;
     if (panel === "activity") return <div><div className="activity-list">{world.events.map((event) => <div className="activity-event" key={event.id}><span className="activity-dot" /><div><strong>@{event.authorName}</strong><p>{event.description}</p><span>{relativeDate(event.createdAt)}{event.isSeed ? " · starter history" : ""}</span>{event.memoryId ? <button type="button" className="text-button" onClick={() => openMemory(event.memoryId!)}>View original<ArrowUpRight size={16} /></button> : null}</div></div>)}</div>{!world.events.length ? <p className="panel-copy">No recent changes.</p> : null}</div>;
     if (panel === "profile") return <form className="profile-form" onSubmit={saveProfile}><div className="profile-avatar"><UserRound size={32} /></div><label className="field">Your name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} minLength={2} maxLength={24} required autoComplete="nickname" placeholder="Display name" /></label><p className="fine-print">Shown beside your contributions.</p><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Save my name"}<ArrowRight size={16} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}<p className="fine-print">Guest access is saved in this browser. Clearing browser data removes access to edit your contributions.</p><div className="section-label">Your contributions</div>{world.memories.filter((memory) => memory.authorId === identity?.id).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</form>;

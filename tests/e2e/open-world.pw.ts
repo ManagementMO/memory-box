@@ -397,7 +397,7 @@ test("two real visitors publish independent notes and photos without gaining the
   const title = `Browser original ${run}`;
   await wanderToFixture(page, world.runId);
   await page.getByRole("button", { name: "Leave something", exact: true }).click();
-  await page.locator(".composer input:not([type=file])").first().fill(title);
+  await page.locator(".composer-title input").fill(title);
   await page.locator(".composer textarea").fill("A family radio notebook from a disposable browser test.");
   const parent = await publishDraft(page);
   await expect(page.locator(".contribution-mark-label")).toHaveText("Note added");
@@ -413,7 +413,7 @@ test("two real visitors publish independent notes and photos without gaining the
   await panel(visitor).getByRole("button", { name: "Image", exact: true }).click();
   const image = await sharp({ create: { width: 128, height: 96, channels: 3, background: "#86b4b1" } }).png().toBuffer();
   await visitor.getByLabel("Choose image", { exact: true }).setInputFiles({ name: "fixture.png", mimeType: "image/png", buffer: image });
-  await visitor.locator(".composer input:not([type=file])").first().fill(`Browser response ${run}`);
+  await visitor.locator(".composer-title input").fill(`Browser response ${run}`);
   await visitor.locator(".composer textarea").fill("My independently authored photo response to this original.");
   const child = await publishDraft(visitor);
   await expect(visitor.locator(".contribution-mark-label")).toHaveText("Photo added");
