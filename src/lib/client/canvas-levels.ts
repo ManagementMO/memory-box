@@ -25,6 +25,6 @@ export function presetCamera(camera: Camera, viewport: {width:number;height:numb
 /** The campus is a real persisted place; an absent starter never creates art. */
 export function initialCampusCamera(memories: Pick<Memory,"id"|"isSeed">[], viewport:{width:number;height:number}): Camera|null {
   if(!campusArrival(memories))return null;
-  const z=viewport.width<=700?.74:.88;
+  const z=viewport.width<=700?.4:.45;
   return {x:viewport.width/2-4300*z,y:viewport.height/2-240*z,z};
 }

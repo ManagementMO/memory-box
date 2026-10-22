@@ -13,3 +13,8 @@ export function overviewLabel(memory: Pick<Memory,"title"|"body">) {
   const body=memory.body.replace(/\s+/g," ").trim();
   return body.length>56?body.slice(0,54)+"…":body;
 }
+
+export function originalLabel(memory: Pick<Memory,"title"|"body"|"type"|"authorName">) {
+  const kind = memory.type === "image" ? "Photo" : memory.type === "link" ? "Link" : "Memory";
+  return overviewLabel(memory) || `${kind} by @${memory.authorName}`;
+}

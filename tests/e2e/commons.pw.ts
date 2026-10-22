@@ -109,6 +109,7 @@ test("wandering away from a pending answer preserves the story and camera when i
   await page.getByRole("button",{name:"Ask the box",exact:true}).click();
   await requested;
   await page.getByRole("button",{name:"Wander into a story",exact:true}).click();
+  await page.getByRole("button",{name:"Read",exact:true}).click();
   const title=await page.locator(".original-title").textContent();
   const camera=()=>page.locator(".world-board").evaluate(element=>({x:element.getAttribute("data-camera-x"),y:element.getAttribute("data-camera-y"),zoom:element.getAttribute("data-camera-zoom")}));
   const before=await camera();

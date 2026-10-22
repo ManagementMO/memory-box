@@ -5,7 +5,9 @@ export function chooseWanderMemory(memories: Memory[], visited: readonly string[
   const others = memories.filter(memory => memory.id !== currentId);
   const pool = others.length ? others : memories;
   const unseen = pool.filter(memory => !visited.includes(memory.id));
-  const candidates = unseen.length ? unseen : pool;
+  const available=unseen.length?unseen:pool;
+  const contributed=available.filter(memory=>!memory.isSeed);
+  const candidates=contributed.length?contributed:available;
   const bounded = Number.isFinite(random) ? Math.max(0, Math.min(.999999999, random)) : 0;
   return candidates[Math.floor(bounded * candidates.length)];
 }

@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { memoryMaterial, overviewLabel } from "../src/lib/client/memory-presentation";
+import { memoryMaterial, originalLabel, overviewLabel } from "../src/lib/client/memory-presentation";
 
 describe("expressive originals",()=>{
   it("keeps a material stable when an author edits their words",()=>{
@@ -15,5 +15,14 @@ describe("expressive originals",()=>{
     expect(overviewLabel({title:"My own title",body:"Body"})).toBe("My own title");
     expect(overviewLabel({title:"",body:"   One small thought\nabout home.  "})).toBe("One small thought about home.");
     expect(overviewLabel({title:"",body:"x".repeat(100)}).length).toBeLessThanOrEqual(57);
+  });
+  it("names a bodyless photo factually without inventing a caption",()=>{
+    expect(originalLabel({type:"image",title:"",body:"",authorName:"visitor"})).toBe("Photo by @visitor");
+    expect(originalLabel({type:"image",title:"  ",body:" \n ",authorName:"another person"})).toBe("Photo by @another person");
+  });
+  it("keeps an actual title or caption ahead of a factual fallback",()=>{
+    const photo={type:"image" as const,title:"Their title",body:"Their caption",authorName:"visitor"};
+    expect(originalLabel(photo)).toBe("Their title");
+    expect(originalLabel({...photo,title:""})).toBe("Their caption");
   });
 });

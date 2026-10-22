@@ -13,13 +13,15 @@
       "src/app/globals.css",
       "src/app/poppy-canvas.css",
       "src/app/toybox.css",
-      "src/app/compact-ui.css"
+      "src/app/compact-ui.css",
+      "src/app/spatial-mosaic.css"
     ],
     "components": [
       "src/components/canvas-dock.tsx",
       "src/components/tool-button.tsx",
       "src/components/pixel-tool-icon.tsx",
-      "src/components/memory-card.tsx"
+      "src/components/memory-card.tsx",
+      "src/components/story-peek.tsx"
     ],
     "assets": [
       "public/favicon.svg",
@@ -112,6 +114,11 @@
     ]
   },
   "decisions": [
+    {
+      "date": "2026-10-22",
+      "direction": "Living mosaic discovery",
+      "reason": "Actual authored materials remain visible at every zoom; place-preserving presets and unseen-story wandering open a spatial Read/Build on/Next preview. Reuse the source-anchored composer with a bounded mobile sheet, restored draft neighborhood, factual labels and visible explicit threads. Only later received new/updated originals receive a capped 1800ms highlight with static reduced-motion feedback. Preserve compact white/pastel pixel chrome, real cursor/painting layers and stored authorship without fabricated activity, new rendering/motion dependencies or migrations."
+    },
     {
       "date": "2026-10-22",
       "direction": "Compact pixel controls",

@@ -13,11 +13,25 @@ Memory Box is a collaborative canvas containing shared pixels, authored notes an
 - Compact pixel chrome: a56px header,344×58px dock,316px desktop panels, butter-yellow stepped primary actions and lilac tabs. Keep six tool labels visible and mobile targets at least44px. Mobile editors use bounded, scrollable sheets; the draw kit is shorter to preserve drawing space. Empty paint controls and persistent gesture instructions do not cover the canvas.
 - Authored pixels, text, images, colors, positions and relationships stay intact. Presence and activity reflect actual events.
 
+## Living mosaic
+
+The 2026-10-22 extension makes discovery part of the actual mosaic. Papers, photos, image frames and body snippets keep their physical world sizes at every zoom; distance never replaces them with generic pins or screen-sized title tiles. The initial campus overview uses 0.4 zoom on phones and 0.45 on desktop while preserving the campus center. Whole patch, Wander and Up close change distance around the current place; Explore frames all occupied content.
+
+Wander selects real stored originals absent from its recent visit history when available, preferring non-starters within that unseen pool. It frames a nearby neighborhood and opens a compact spatial preview with Read, Build on and Next actions. Canvas clicks use the same preview. Read and search citations retain the full reader; returning to search restores the camera, results position and focus. Closing a preview restores its visible invoker or the Wander control.
+
+Build on reuses the controlled text/photo/link composer beside its actual source on desktop. On phones, the scrollable reply sheet stays above the dock and is bounded to 60dvh and 440px; neighborhood framing leaves the source visible above it, including on short screens. Mobile preview controls retain 44px targets. Resuming a build-on draft restores its controlled content and, while the parent exists, its actual parent neighborhood. Source labels use authored title/body text or factual type-and-author fallbacks, including untitled photos. A saved child returns to its spatial preview; visible threads represent explicit stored build-on links and emphasize the selected relationship.
+
+Only originals newly received or changed after the initial snapshot receive an arrival outline, limited to 12 at once for 1800ms. Initial content does not animate; reduced motion uses a static outline. Real cursors and painting keep their existing separate canvas layers. Preserve the white/pastel pixel materials, compact chrome and authored positions without fabricated participants, stories, activity or relationships. This extension adds no rendering or motion library and no database migration.
+
 ## Sources
 
 Visual tokens: `src/app/compact-ui.css` owns the compact controls, on top of `toybox.css`, `globals.css`, `living-mosaic.css`, and `poppy-canvas.css`.
 
-Components: `canvas-dock.tsx`, `pixel-tool-icon.tsx`, `tool-button.tsx`, `box-mark.tsx`, `memory-card.tsx`.
+Spatial materials, visible threads, story overlays and bounded arrival feedback: `src/app/spatial-mosaic.css`.
+
+Components: `canvas-dock.tsx`, `pixel-tool-icon.tsx`, `tool-button.tsx`, `box-mark.tsx`, `memory-card.tsx`, `story-peek.tsx`.
+
+Spatial behavior: `src/components/world-canvas.tsx`, `src/components/memory-box-app.tsx`, `src/lib/client/story-neighborhood.ts`, `src/lib/client/canvas-levels.ts`, `src/lib/client/story-discovery.ts`, and `src/lib/client/memory-presentation.ts`.
 
 Assets: `public/favicon.svg`, `public/cursors/*.svg` and self-hosted fonts.
 
@@ -26,3 +40,5 @@ Creation materials: `paint-kit.tsx`, `memory-composer.tsx`, `playground.css`, an
 Research, reference comparisons, tradeoffs and the motion contract: [Pixel toybox](../docs/specs/2026-10-22-pixel-toybox.md).
 
 Creation-surface research and motion decisions: [Creative kit research](../docs/research/2026-10-22-creative-kit.md) and [implementation contract](../docs/specs/2026-10-22-creative-kit.md).
+
+Living mosaic contract and implementation plan: [Living mosaic discovery](../docs/superpowers/specs/2026-10-22-living-mosaic-design.md) and [implementation plan](../docs/superpowers/plans/2026-10-22-living-mosaic.md).

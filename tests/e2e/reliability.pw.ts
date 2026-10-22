@@ -83,6 +83,7 @@ test("an edit stays frozen until its response, then shows the saved version", as
   await page.reload();
   await expect(page.locator(".connection-state")).toHaveText("Live");
   await page.getByRole("button", { name: "Wander into a story", exact: true }).click();
+  await page.getByRole("button", { name: "Read", exact: true }).click();
   await page.getByRole("button", { name: "Edit memory", exact: true }).click();
   await page.locator(".composer textarea").fill("The exact submitted edit.");
   const started = deferred(), release = deferred();
@@ -132,6 +133,7 @@ test("a committed save survives a failed refresh without a missing-memory inspec
   await page.getByRole("button", { name: "Reconnect", exact: true }).click();
   await expect(page.locator(".connection-state")).toHaveText("Live");
   await page.getByRole("button", { name: "Wander into a story", exact: true }).click();
+  await page.getByRole("button", { name: "Read", exact: true }).click();
   await expect(page.locator(".original-title")).toHaveText("Stable draft");
   await page.getByRole("button", { name: "Leave something", exact: true }).click();
   await expect(page.locator(".composer textarea")).toHaveValue("");
