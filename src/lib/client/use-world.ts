@@ -6,6 +6,12 @@ import { publicApi } from "./api";
 import { getBrowserSupabase, guestSession, identityFromSession, safeConnectionFailure } from "./supabase";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline" | "error";
+interface SnapshotRequest {
+  generation: number;
+  controller: AbortController;
+  promise: Promise<WorldSnapshot | null>;
+  resolve: (snapshot: WorldSnapshot | null) => void;
+}
 
 export function useWorld() {
   const [world, setWorld] = useState<WorldSnapshot | null>(null);
@@ -14,20 +20,27 @@ export function useWorld() {
   const [error, setError] = useState("");
   const [restart, setRestart] = useState(0);
   const mounted = useRef(false);
-  const loading = useRef<Promise<void> | null>(null);
-  const again = useRef(false);
+  const generation = useRef(0);
+  const loading = useRef<SnapshotRequest | null>(null);
+  const queued = useRef<SnapshotRequest | null>(null);
   const subscribed = useRef(false);
   const admissionError = useRef("");
   const worldRef = useRef<WorldSnapshot | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (loading.current) { again.current = true; return loading.current; }
-    const request = async () => {
-      do {
-        again.current = false;
+  const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
+    if (!mounted.current) return null;
+    const createRequest = (): SnapshotRequest => {
+      let resolve!: SnapshotRequest["resolve"];
+      const promise = new Promise<WorldSnapshot | null>(done => { resolve = done; });
+      return { generation: generation.current, controller: new AbortController(), promise, resolve };
+    };
+    const startRequest = (active: SnapshotRequest) => {
+      loading.current = active;
+      const isCurrent = () => mounted.current && generation.current === active.generation && !active.controller.signal.aborted;
+      const request = async (): Promise<WorldSnapshot | null> => {
         try {
-          const next = await publicApi<WorldSnapshot>("/api/world");
-          if (!mounted.current) return;
+          const next = await publicApi<WorldSnapshot>("/api/world", { signal: active.controller.signal });
+          if (!isCurrent()) return null;
           const current = worldRef.current;
           if (!current || next.epoch > current.epoch || (next.epoch === current.epoch && next.revision >= current.revision)) {
             worldRef.current = next;
@@ -35,20 +48,43 @@ export function useWorld() {
           }
           setError(admissionError.current);
           if (subscribed.current && navigator.onLine) setConnection("live");
+          return worldRef.current;
         } catch (cause) {
-          if (!mounted.current) return;
+          if (!isCurrent()) return null;
           setError(cause instanceof Error ? cause.message : "The world couldn’t be loaded.");
           setConnection(navigator.onLine ? "error" : "offline");
+          return null;
         }
-      } while (again.current && mounted.current);
+      };
+      void request().then(result => {
+        if (loading.current === active) {
+          const next = queued.current;
+          queued.current = null;
+          loading.current = null;
+          // Install the next request before releasing waiters. Later notices may
+          // queue another fetch, but cannot extend this caller's freshness horizon.
+          if (next && isCurrent()) startRequest(next);
+          else next?.resolve(null);
+        }
+        active.resolve(result);
+      });
     };
-    loading.current = request().finally(() => { loading.current = null; });
-    return loading.current;
+    // A caller arriving during an older fetch needs one begun after its call.
+    // All callers waiting on that next fetch share it, not every later notice.
+    if (loading.current) {
+      queued.current ??= createRequest();
+      return queued.current.promise;
+    }
+    const active = createRequest();
+    startRequest(active);
+    return active.promise;
   }, []);
 
   useEffect(() => {
     mounted.current = true;
+    const currentGeneration = ++generation.current;
     let disposed = false;
+    let admitted = true;
     let disposeChannel: (() => void) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     admissionError.current = "";
@@ -66,23 +102,34 @@ export function useWorld() {
         phase = "subscribe-world";
         const channel = supabase.channel("world:commons", { config: { private: true } });
         const scheduleRefresh = () => {
-          if (timer) return;
+          if (disposed || !admitted || timer) return;
           timer = setTimeout(() => { timer = undefined; void refresh(); }, 80);
         };
         channel.on("broadcast", { event: "changed" }, ({ payload }: { payload: WorldNotice }) => {
           if (typeof payload?.revision !== "number") return;
           scheduleRefresh();
         }).subscribe((status) => {
-          if (disposed) return;
+          if (disposed || !admitted) return;
           subscribed.current = status === "SUBSCRIBED";
           if (status === "SUBSCRIBED") void refresh();
           else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setConnection(navigator.onLine ? "reconnecting" : "offline");
         });
         const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-          if (next && !disposed) {
-            setIdentity((previous) => previous?.id === next.user.id ? { ...identityFromSession(next), name: previous.name } : identityFromSession(next));
-            void supabase.realtime.setAuth(next.access_token);
+          if (disposed || !admitted) return;
+          if (!next) {
+            admitted = false;
+            subscribed.current = false;
+            setIdentity(null);
+            if (timer) { clearTimeout(timer); timer = undefined; }
+            disposeChannel?.();
+            disposeChannel = undefined;
+            admissionError.current = "Your guest session ended. Reconnect to contribute or ask.";
+            setError(admissionError.current);
+            setConnection(navigator.onLine ? "error" : "offline");
+            return;
           }
+          setIdentity((previous) => previous?.id === next.user.id ? { ...identityFromSession(next), name: previous.name } : identityFromSession(next));
+          void supabase.realtime.setAuth(next.access_token);
         });
         disposeChannel = () => { listener.subscription.unsubscribe(); void supabase.removeChannel(channel); };
         phase = "refresh-world";
@@ -105,6 +152,17 @@ export function useWorld() {
     const poll = setInterval(() => { if (document.visibilityState === "visible" && navigator.onLine) void refresh(); }, 15_000);
     return () => {
       disposed = true; mounted.current = false; subscribed.current = false;
+      if (generation.current === currentGeneration) ++generation.current;
+      if (loading.current?.generation === currentGeneration) {
+        loading.current.controller.abort();
+        loading.current.resolve(null);
+        loading.current = null;
+      }
+      if (queued.current?.generation === currentGeneration) {
+        queued.current.controller.abort();
+        queued.current.resolve(null);
+        queued.current = null;
+      }
       if (timer) clearTimeout(timer);
       clearInterval(poll); disposeChannel?.();
       window.removeEventListener("offline", offline); window.removeEventListener("online", online); document.removeEventListener("visibilitychange", visible);

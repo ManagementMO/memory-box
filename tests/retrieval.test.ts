@@ -43,6 +43,20 @@ describe("retrieval authority",()=>{
     expect(result.status).toBe("unavailable");expect(result.claims).toEqual([]);
     expect(result.results).toEqual([]);
   });
+  it("withholds an exact quote when the derived image description changes without a source version bump",async()=>{
+    const source={...memory,type:"image" as const,imageDescription:"A red bicycle."};
+    dependencies.search.mockResolvedValue({mode:"hybrid",results:[{memory:source,score:.03,match:"both"}]});
+    dependencies.generate.mockResolvedValue({status:"answered",claims:[{text:"A red bicycle.",sourceIds:[source.id]}],summary:""});
+    dependencies.snapshot.mockResolvedValue({memories:[{...source,imageDescription:"A blue bicycle."}]});
+    const result=await ask("What color is the bicycle?");
+    expect(result.status).toBe("unavailable");expect(result.claims).toEqual([]);
+    expect(result.results).toEqual([]);
+  });
+  it.each([{body:"Changed words."},{authorName:"A different author"},{title:"Changed title"},{inspiredBy:"a-different-parent"}])("withholds same-version evidence drift: %j",async patch=>{
+    dependencies.snapshot.mockResolvedValue({memories:[{...memory,...patch}]});
+    const result=await ask("music and family");
+    expect(result.status).toBe("unavailable");expect(result.claims).toEqual([]);
+  });
   it("does not deliver a removed original when the provider fails during generation",async()=>{
     dependencies.generate.mockRejectedValue(new Error("provider timed out"));
     dependencies.snapshot.mockResolvedValue({memories:[]});

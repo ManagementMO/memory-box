@@ -34,6 +34,7 @@ export interface AssetRecord {
 }
 export interface IndexJob { id: string; memory_id: string; source_version: number; attempts: number; memory: Memory }
 export interface AssetCleanupClaim { id: string; path: string | null; staging_path: string }
+export interface ReadyStagingCleanupClaim { id: string; staging_path: string; claim_token: string }
 export interface PaintTurn { serverTime: string; nextPaintAt: string; cooldownSeconds: 15 }
 export interface PaintAcceptance extends PaintTurn { status: "accepted"; operationId: string; revision: number; epoch: number; pixels: Pixel[] }
 export interface PaintCooldown extends PaintTurn { status: "cooldown"; retryAfterMs: number }
@@ -66,17 +67,23 @@ export const markAssetReady = (actorId: string, id: string, metadata: { path: st
 export const getReadableAsset = (id: string, viewerId?: string | null) => rpc<AssetRecord | null>("mb_readable_asset", { p_id: id, p_viewer: viewerId || null });
 export const claimAssetCleanup = (limit = 25) => rpc<AssetCleanupClaim[]>("mb_claim_asset_cleanup", { p_limit: limit });
 export const completeAssetCleanup = (id: string) => rpc<boolean>("mb_complete_asset_cleanup", { p_id: id });
+export const claimReadyStagingCleanup = (limit = 25) => rpc<ReadyStagingCleanupClaim[]>("mb_claim_ready_staging_cleanup", { p_limit: limit });
+export const completeReadyStagingCleanup = (id: string, token: string) => rpc<boolean>("mb_complete_ready_staging_cleanup", { p_id: id, p_token: token });
 
 export function searchMemories(query: string, embedding: number[] | null, sceneId?: SceneId | null, limit = 12, model = process.env.EMBEDDING_MODEL || "supabase/gte-small:padded1536") {
   if (embedding && (embedding.length !== 1536 || embedding.some(n => !Number.isFinite(n)))) throw new Error("Invalid embedding dimensions");
   return rpc<SearchResponse>("mb_search", { p_query: query, p_embedding: embedding ? JSON.stringify(embedding) : null, p_scene_id: sceneId || null, p_limit: limit, p_model: model });
 }
 export const getIndexJobs = (limit = 5) => rpc<IndexJob[]>("mb_lease_index_jobs", { p_limit: limit });
-export function completeIndexJob(id: string, version: number, representation: string, embedding: number[], model = process.env.EMBEDDING_MODEL || "supabase/gte-small:padded1536") {
+export function completeIndexJob(id: string, version: number, attempt: number, representation: string, embedding: number[], model = process.env.EMBEDDING_MODEL || "supabase/gte-small:padded1536", imageDescription: string | null = null) {
   if (embedding.length !== 1536 || embedding.some(n => !Number.isFinite(n))) throw new Error("Invalid embedding dimensions");
-  return rpc<boolean>("mb_complete_index_job", { p_job_id: id, p_version: version, p_representation: representation, p_embedding: JSON.stringify(embedding), p_model: model });
+  if (!Number.isInteger(attempt) || attempt < 1) throw new Error("Invalid index lease attempt");
+  return rpc<boolean>("mb_complete_index_job_leased", { p_job_id: id, p_version: version, p_attempt: attempt, p_representation: representation, p_embedding: JSON.stringify(embedding), p_model: model, p_image_description: imageDescription });
 }
-export const failIndexJob = (id: string, reason: string) => rpc<void>("mb_fail_index_job", { p_job_id: id, p_reason: reason.slice(0, 120) });
+export function failIndexJob(id: string, attempt: number, reason: string) {
+  if (!Number.isInteger(attempt) || attempt < 1) throw new Error("Invalid index lease attempt");
+  return rpc<boolean>("mb_fail_index_job_leased", { p_job_id: id, p_attempt: attempt, p_reason: reason.slice(0, 120) });
+}
 export const consumeBudget = (actorId: string, kind: string, limit: number, windowSeconds: number, cost = 1) => rpc<number>("mb_consume_budget", { p_actor: actorId, p_kind: kind, p_limit: limit, p_window_seconds: windowSeconds, p_cost: cost });
 export const createReport = (actorId: string, input: { memoryId?: string; bounds?: { x: number; y: number; width: number; height: number }; reason: string }) => rpc<string>("mb_report", { p_actor: actorId, p_input: input });
 export const moderate = (actorId: string, action: "hide" | "restore" | "pause" | "resume" | "clear" | "suspend" | "unsuspend", options: { memoryId?: string; targetActorId?: string; bounds?: { x: number; y: number; width: number; height: number } } = {}) => rpc<{ revision: number; epoch: number }>("mb_moderate", { p_actor: actorId, p_action: action, p_memory_id: options.memoryId || null, p_target_actor: options.targetActorId || null, p_bounds: options.bounds || null });

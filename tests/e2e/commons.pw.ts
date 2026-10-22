@@ -33,11 +33,11 @@ test("explores originals and searches without changing the world", async ({ page
   await expect(page.locator(".connection-state")).toHaveText("Live", { timeout: 30_000 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await browse(page);
-  await expect(page.getByRole("complementary", { name: "Original fragments" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Browse", exact: true })).toBeVisible();
   const first = page.locator(".context-panel .memory-result").first();
   await expect(first).toBeVisible();
   await first.click();
-  await expect(page.getByRole("heading", { name: "In their own words", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Original", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Build on this", exact: true })).toBeAttached();
   await page.getByRole("button", { name: "Close panel", exact: true }).click();
   const query = await openSearch(page);
@@ -115,6 +115,6 @@ test("wandering away from a pending answer preserves the story and camera when i
   const response=page.waitForResponse(result=>new URL(result.url()).pathname==="/api/ask");
   release();await response;
   await expect(page.locator(".original-title")).toHaveText(title!);
-  await expect(page.getByRole("complementary",{name:"In their own words",exact:true})).toBeVisible();
+  await expect(page.getByRole("complementary",{name:"Original",exact:true})).toBeVisible();
   await expect.poll(camera).toEqual(before);
 });

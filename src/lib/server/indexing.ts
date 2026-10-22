@@ -7,19 +7,19 @@ import { AIServiceError, describeImage, embedText, getAIModels } from "./ai";
 import { trustedSeedImagePath } from "./trusted-seed-image";
 
 async function imageForMemory(memory: Memory) {
-  if (memory.type !== "image" || !memory.imageUrl) return null;
+  if (memory.type !== "image" || !memory.imageUrl) throw new Error("index_image_unavailable");
   const seedPath = trustedSeedImagePath(memory);
   if (seedPath) {
     const original = await readFile(path.join(process.cwd(), "public", seedPath));
-    return {bytes: await sharp(original).webp().toBuffer(), mime:"image/webp", assetId:null};
+    return {bytes: await sharp(original).webp().toBuffer(), mime:"image/webp"};
   }
   const assetId = memory.imageUrl.match(/^\/api\/assets\/([a-f0-9-]{36})$/)?.[1];
-  if (!assetId) return null;
+  if (!assetId) throw new Error("index_image_unavailable");
   const asset = await getReadableAsset(assetId);
-  if (!asset?.path) return null;
+  if (!asset?.path) throw new Error("index_image_unavailable");
   const result = await adminClient().storage.from("memory-assets").download(asset.path);
-  if (result.error || !result.data) return null;
-  return {bytes:new Uint8Array(await result.data.arrayBuffer()), mime:"image/webp", assetId};
+  if (result.error || !result.data) throw new Error("index_image_unavailable");
+  return {bytes:new Uint8Array(await result.data.arrayBuffer()), mime:"image/webp"};
 }
 
 export async function processIndexJobs(limit = 2) {
@@ -35,18 +35,10 @@ export async function processLeasedIndexJobs(jobs: IndexJob[]) {
   await Promise.all(jobs.map(async job => {
     try {
       const memory = job.memory;
-      let description = memory.imageDescription || "";
+      let description = memory.type === "image" ? memory.imageDescription || "" : "";
       if (memory.type === "image" && !description) {
         const image = await imageForMemory(memory);
-        if (image) {
-          description = await describeImage(image.bytes, image.mime);
-          if (image.assetId) {
-            // The immutable image owns this derived field; the version-checked
-            // completion below remains the authority for index eligibility.
-            const update = await adminClient().from("assets").update({description}).eq("id", image.assetId);
-            if (update.error && update.error.code !== "42703" && update.error.code !== "PGRST204") throw update.error;
-          }
-        }
+        description = await describeImage(image.bytes, image.mime);
       }
       const representation = [
         `Title: ${memory.title}`,
@@ -59,11 +51,13 @@ export async function processLeasedIndexJobs(jobs: IndexJob[]) {
       // provenance labels and scene boilerplate made unrelated seed notes
       // artificially similar in the small GTE pilot calibration.
       const embedding = await embedText([memory.title, memory.body, description].filter(Boolean).join("\n"));
-      const accepted = await completeIndexJob(job.id, job.source_version, representation, embedding, getAIModels().embedding);
+      // Caption, vector and source eligibility commit together. Never overwrite
+      // a shared asset's description outside the version/lease fence.
+      const accepted = await completeIndexJob(job.id, job.source_version, job.attempts, representation, embedding, getAIModels().embedding, description || null);
       if (accepted) completed++;
     } catch (error) {
       failed++;
-      await failIndexJob(job.id, error instanceof AIServiceError ? error.code : "indexing_failed");
+      await failIndexJob(job.id, job.attempts, error instanceof AIServiceError ? error.code : "indexing_failed");
     }
   }));
   return {completed, failed, leased:jobs.length};

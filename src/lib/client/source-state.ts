@@ -1,4 +1,5 @@
 import type { AnswerResponse, Memory, SearchResponse } from "../types";
+import { sameAnswerEvidence } from "../answer-evidence";
 
 /** Search snapshots never grant access to an original that has since left the world. */
 export function projectSearch<T extends SearchResponse>(data: T, memories: Memory[]): T {
@@ -9,9 +10,13 @@ export function projectSearch<T extends SearchResponse>(data: T, memories: Memor
   }) };
 }
 
-export function answerSourcesChanged(versions: Record<string, number>, memories: Memory[]): boolean {
-  const current = new Map(memories.map((memory) => [memory.id, memory.version]));
-  return Object.entries(versions).some(([id, version]) => current.get(id) !== version);
+export function answerSourcesChanged(versions: Record<string, number>, memories: Memory[], sources?: Memory[]): boolean {
+  const current = new Map(memories.map((memory) => [memory.id, memory]));
+  const evidence = sources && new Map(sources.map((memory) => [memory.id, memory]));
+  return Object.entries(versions).some(([id, version]) => {
+    const memory = current.get(id), original = evidence?.get(id);
+    return !memory || memory.version !== version || !!(evidence && (!original || !sameAnswerEvidence(original, memory)));
+  });
 }
 
 export function citedSourceCount(claims: Pick<AnswerResponse["claims"][number], "sourceIds">[], memories: Memory[]): number {
