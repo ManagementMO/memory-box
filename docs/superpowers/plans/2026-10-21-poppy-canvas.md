@@ -17,7 +17,7 @@
 - [x] Carry the approved warm-white, pink/coral/lilac/yellow/cobalt system into controls, readers, paint tools and actual cursor labels. Keep drawing and note/photo composition usable at320px.
 - [x] Prepare and independently review a separately versioned six-original/photo starter cluster plus small editable pixel accents. Preserve every preexisting row, enforce provenance and make repeat imports no-ops. All new stories/photo are illustrative, labeled starters.
 - [x] Verify unit/type/build, then one batched desktop/mobile browser/visual pass with real independent visitors: zoom/pan, cursor/paint preview and save, private photo, notes, build-on, search/Ask/source return. Clean exact fixtures; fix the findings together and confirm once.
-- [ ] Independent review, source/CI checks, staged production deployment, controlled additive import and indexing, promotion, final public health and representative desktop/mobile behavior. Record exact release evidence and screenshots.
+- [x] Independent review, source/CI checks, staged production deployment, controlled additive import and indexing, promotion, final public health and representative desktop/mobile behavior. Record exact release evidence and screenshots.
 
 ## Invariants
 
