@@ -23,11 +23,15 @@
 
 ## Tasks
 
-- [ ] Server turn transaction, authenticated timing endpoint, exact429 response, max144 validation and undo bypass fix; focused HTTP and rollback database/concurrency tests.
-- [ ] Original Waterloo content, authored SVGs, editable unfinished pixel motifs, safe insert-only import and repeat/provenance tests.
-- [ ] Client monotonic timer and error handling; both brush buttons and shape placement; initial campus framing and dynamic invitation; campus discovery prompts and compact mobile feedback.
-- [ ] Unit/type/build and focused real-browser verification on desktop/mobile: paint/save/wait, preview preservation, independent visitor/reload, continued note composition, existing collaboration/Find/Ask.
-- [ ] Independent change review; apply narrowly reviewed migration/import; deploy verified build; confirm live behavior, preservation hashes, no-op import, indexing status, CI/source parity and actual captures.
+- [x] Server turn transaction, authenticated timing endpoint, exact429 response, max144 validation and undo bypass fix; focused HTTP and rollback database/concurrency tests.
+- [x] Original Waterloo content, authored SVGs, editable unfinished pixel motifs, safe insert-only import and repeat/provenance tests.
+- [x] Client monotonic timer and error handling; both brush buttons and shape placement; initial campus framing and dynamic invitation; campus discovery prompts and compact mobile feedback.
+- [x] Unit/type/build and focused real-browser verification on desktop/mobile: paint/save/wait, preview preservation, independent visitor/reload, continued note composition, existing collaboration/Find/Ask.
+- [x] Independent change review; apply narrowly reviewed migration/import; deploy verified build; confirm live behavior, preservation hashes, no-op import, indexing status, CI/source parity and actual captures.
+
+## Release evidence
+
+Application commit `f07da157f797f6289e0c55ae9e1807915f2cab8e` is live on production deployment `dpl_BjJxxmThRY3yNiYyaN8VTpUPxGih`; [its exact GitHub Checks run](https://github.com/ManagementMO/memory-box/actions/runs/39722544703) passed. Final mobile production regression passed in 24.0 seconds after promotion, including actual cooldown rejection and preview editing, reload, note publication while waiting, expiry and explicit resave. All 10 disposable test identities across this turn's runs and their exact fixtures were cleaned. Public health then reported revision 329, 118 originals and 106 indexed; all 24 campus starters are semantically ready, with 12 older originals pending under the unchanged public allowance. Production runtime error/fatal logs for the final 10-minute check returned no records. Actual public-app desktop and mobile captures are in the task's Waterloo commons output folder. These are controlled verification sessions, not evidence of student adoption.
 
 ## Review focus
 
