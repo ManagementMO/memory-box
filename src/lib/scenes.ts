@@ -14,6 +14,10 @@ export const PAINT_COLORS = [
   { name: "Sky", value: "#A3B5EB" }, { name: "Apricot", value: "#E9BC94" }, { name: "Leaf", value: "#64936E" },
 ];
 export const SHAPES = {
+  goose: { name: "Suspicious goose", rows: [".....aaaa...", "....aaaaaa..", "....aakwaayy", "....aaaaaayy", ".....aaaa...", ".....aaa....", "..aaaaaa....", ".aaaaaaaa...", ".aaaawaaa...", "..aaaaaaa...", "...yy.yy....", "..yy...yy..."] },
+  cat: { name: "Unreasonable cat", rows: [".aa......aa.", ".aaa....aaa.", ".aaaaaaaaaa.", "aaaaaaaaaaaa", "aawkaaaakwaa", "aaaaaaaaaaaa", ".aaaayaaaaa.", "..aaaaaaaa..", "...aaaaaa...", ".aaaaaaaaaa.", ".aaa....aaa.", "............"] },
+  carriage: { name: "One more carriage", rows: [".aaaaaaaaaaaaaa.", "aaaaaaaaaaaaaaaa", "aawwawwawwawwaaa", "aawwawwawwawwaaa", "aawwawwawwawwaaa", "aaaaaaaaaaaaaaaa", "..kk.......kk...", "..kk.......kk..."] },
+  soup: { name: "Soup, eventually", rows: ["...a....a...", "....a..a....", "...a....a...", "............", ".aaaaaaaaaa.", "aaaaaaaaaaaa", ".aaaayaaaaa.", "..aaaaaaaa..", "...aaaaaa...", "....aaaa....", "............", "............"] },
   speaker: { name: "Speaker", rows: ["aaaaaaaaaaaa", "akkkkkkkkkka", "akkwwwwwwkka", "akkwkkkkwkka", "akkwwwwwwkka", "akkkkkkkkkka", "akkwwwwwwkka", "akwkkkkkkwka", "akwkkwwkkwka", "akwkkkkkkwka", "akkwwwwwwkka", "aaaaaaaaaaaa"] },
   star: { name: "Star", rows: [".....aa.....", ".....aa.....", "....aaaa....", "aaaaaaaaaaaa", ".aaaaaaaaaa.", "..aaaaaaaa..", "...aaaaaa...", "..aaaaaaaa..", "..aaa..aaa..", ".aaa....aaa.", ".aa......aa.", "............"] },
   heart: { name: "Heart", rows: ["............", ".aaa...aaa..", "aaaaa.aaaaa.", "aaaaaaaaaaa.", "aaaaaaaaaaa.", ".aaaaaaaaa..", "..aaaaaaa...", "...aaaaa....", "....aaa.....", ".....a......", "............", "............"] },

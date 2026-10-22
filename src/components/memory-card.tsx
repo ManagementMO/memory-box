@@ -8,7 +8,7 @@ export function MemoryCard({ memory, selected, number, dimmed, parentName, onOpe
 }) {
   const size = memorySize(memory);
   const angle = ((memory.id.charCodeAt(memory.id.length - 1) || 0) % 5) - 2;
-  const style = { left: memory.x, top: memory.y, width: size.width, height: size.height, "--paper": memory.color, "--tilt": `${angle}deg` } as CSSProperties;
+  const style = { left: memory.x, top: memory.y, width: size.width, height: size.height, "--memory-width": `${size.width}px`, "--memory-height": `${size.height}px`, "--paper": memory.color, "--tilt": `${angle}deg` } as CSSProperties;
   const content = <>
     <span className="memory-pin" aria-hidden="true">{memory.type === "image" ? <ImageIcon size={13} /> : memory.type === "link" ? <Link2 size={13} /> : <Quote size={13} />}</span>
     {memory.type === "image" ? <span className="memory-photo"><img src={memory.imageUrl ?? ""} alt={memory.title || "Uploaded memory"} draggable={false} /><span><strong className="memory-photo-title">{memory.title || "A little keepsake"}</strong><small className="memory-photo-author">@{memory.authorName}</small></span></span>
@@ -18,7 +18,7 @@ export function MemoryCard({ memory, selected, number, dimmed, parentName, onOpe
     {number ? <span className="memory-number">{number}</span> : null}
   </>;
   const className = `memory-card ${memory.type}${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}${pending ? " is-pending" : ""}`;
-  return pending ? <div className={className} style={style}>{content}</div> : <button type="button" className={className} style={style} onClick={onOpen} aria-label={`${memory.title || memory.body.slice(0, 50)} — ${memory.type} by ${memory.authorName}`}>{content}</button>;
+  return pending ? <div className={className} style={style}>{content}</div> : <button type="button" className={className} style={style} data-memory-id={memory.id} onClick={onOpen} aria-label={`${memory.title || memory.body.slice(0, 50)} — ${memory.type} by ${memory.authorName}`}>{content}</button>;
 }
 
 export function MemoryResult({ memory, index, onOpen, match }: { memory: Memory; index?: number; onOpen: () => void; match?: string }) {

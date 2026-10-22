@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionIdentity, WorldNotice, WorldSnapshot } from "@/lib/types";
 import { publicApi } from "./api";
-import { getBrowserSupabase, guestSession, identityFromSession } from "./supabase";
+import { getBrowserSupabase, guestSession, identityFromSession, safeConnectionFailure } from "./supabase";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline" | "error";
 
@@ -54,13 +54,16 @@ export function useWorld() {
     admissionError.current = "";
     setConnection("connecting");
     async function connect() {
+      let phase = "guest-session";
       try {
         const session = await guestSession();
         if (disposed) return;
         const supabase = getBrowserSupabase();
         setIdentity(identityFromSession(session));
+        phase = "realtime-auth";
         await supabase.realtime.setAuth(session.access_token);
         if (disposed) return;
+        phase = "subscribe-world";
         const channel = supabase.channel("world:commons", { config: { private: true } });
         const scheduleRefresh = () => {
           if (timer) return;
@@ -82,9 +85,13 @@ export function useWorld() {
           }
         });
         disposeChannel = () => { listener.subscription.unsubscribe(); void supabase.removeChannel(channel); };
+        phase = "refresh-world";
         await refresh();
       } catch (cause) {
-        if (!disposed) { admissionError.current = "You can explore the commons. Joining the live world is unavailable right now. Try reconnecting to contribute or ask."; setError(admissionError.current); setConnection(navigator.onLine ? "error" : "offline"); }
+        if (!disposed) {
+          console.warn("[Memory Box] live connection failed", { phase, ...safeConnectionFailure(cause) });
+          admissionError.current = "You can explore the commons. Joining the live world is unavailable right now. Try reconnecting to contribute or ask."; setError(admissionError.current); setConnection(navigator.onLine ? "error" : "offline");
+        }
       }
     }
     const offline = () => { setConnection("offline"); };

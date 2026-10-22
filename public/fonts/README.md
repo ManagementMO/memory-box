@@ -7,3 +7,5 @@ Locally served Latin WOFF2 files used by `next/font/local`. Body and display fil
 - IBM Plex Mono: [official font repository](https://github.com/IBM/plex), [Google Fonts source and license](https://github.com/google/fonts/tree/main/ofl/ibmplexmono).
 
 WOFF2 files were obtained from the Google Fonts stylesheet for these exact families on 21 October 2026. SIL Open Font License texts are included beside the files. No runtime Google Fonts requests are needed.
+
+Caveat Medium is self-hosted as a TrueType font for handwritten text on the spatial fragments, with readable Schibsted text in the original reader. Its [Google Fonts source](https://github.com/google/fonts/tree/main/ofl/caveat) and included `Caveat-OFL.txt` cover this font. It is not fetched by the running browser.

@@ -1,31 +1,33 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Compass, Maximize2, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Compass, Maximize2, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Memory, Pixel, SceneId, WorldSnapshot } from "@/lib/types";
-import { memorySize, SCENES, SCENE_LABELS } from "@/lib/scenes";
+import { memorySize } from "@/lib/scenes";
 import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
-import { frameCamera, mergePaintCells, rasterLine, screenToWorld, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
+import { arrivalBounds, frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
+import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
 import { MemoryCard } from "./memory-card";
 
 export interface CameraView extends Camera { width: number; height: number }
 export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore"; points?: FramePoint[]; camera?: CameraView }
 export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: number; pixels?: Pixel[]; memory?: Memory }
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
-interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; previousCell?: Point; distance?: number; anchor?: Point }
+interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene, onOpen, pending, onPosition, command, brush, onCameraChange, children }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, children }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
-  brush?: BrushState; onCameraChange?: (camera: CameraView) => void; children?: React.ReactNode;
+  brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; children?: React.ReactNode;
 }) {
-  const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
-  const coordinate = useRef<HTMLSpanElement>(null), miniView = useRef<SVGRectElement>(null);
+  const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
+  const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
   const camera = useRef<Camera>({ x: 0, y: 0, z: .8 });
   const viewport = useRef({ width: 0, height: 0 }), initialized = useRef(false);
   const pointers = useRef(new Map<number, Point>()), gesture = useRef<Gesture | null>(null), stroke = useRef<Pixel[]>([]);
-  const latest = useRef({ world, pending, brush, onCameraChange });
-  latest.current = { world, pending, brush, onCameraChange };
+  const suppressCardClickUntil = useRef(0);
+  const latest = useRef({ world, pending, brush, onCameraChange, peers, onCursor });
+  latest.current = { world, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
 
   const draw = useCallback(() => {
@@ -43,6 +45,12 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
     const visible = (pixel: Pixel) => pixel.x * GRID_SIZE + GRID_SIZE >= left && pixel.x * GRID_SIZE <= right && pixel.y * GRID_SIZE + GRID_SIZE >= top && pixel.y * GRID_SIZE <= bottom;
     const paint = (cells: Pixel[], opacity = 1) => { context.setTransform(1, 0, 0, 1, 0, 0); context.globalAlpha = opacity; for (const pixel of cells) if (visible(pixel)) { context.fillStyle = pixel.color; const x = Math.round((pixel.x * GRID_SIZE * c.z + c.x) * ratio), y = Math.round((pixel.y * GRID_SIZE * c.z + c.y) * ratio), right = Math.round(((pixel.x + 1) * GRID_SIZE * c.z + c.x) * ratio), bottom = Math.round(((pixel.y + 1) * GRID_SIZE * c.z + c.y) * ratio); context.fillRect(x, y, right - x, bottom - y); } context.globalAlpha = 1; context.setTransform(ratio * c.z, 0, 0, ratio * c.z, ratio * c.x, ratio * c.y); };
     paint(data.world.pixels);
+    // Presence is a temporary preview. Only /api/paint can save shared pixels.
+    const now = Date.now();
+    for (const peer of data.peers) if (peer.tool === "paint" && peer.stroke?.length) {
+      const opacity = .42 * Math.max(0, 1 - (now - peer.updatedAt) / 5000);
+      if (opacity) paint(peer.stroke.slice(0, 128), opacity);
+    }
     const preview = mergePaintCells(data.brush?.cells ?? [], stroke.current);
     paint(preview, .65);
     context.strokeStyle = "#6F84D7"; context.lineWidth = 1 / c.z;
@@ -62,6 +70,27 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
       for (let y = Math.floor(top / GRID_SIZE) * GRID_SIZE; y <= bottom; y += GRID_SIZE) { context.moveTo(left, y); context.lineTo(right, y); }
       context.stroke();
     }
+    const cursorTarget = cursorCanvas.current, cursors = cursorTarget?.getContext("2d");
+    if (!cursorTarget || !cursors) return;
+    if (cursorTarget.width !== target.width || cursorTarget.height !== target.height) { cursorTarget.width = target.width; cursorTarget.height = target.height; }
+    cursors.setTransform(1, 0, 0, 1, 0, 0); cursors.clearRect(0, 0, cursorTarget.width, cursorTarget.height); cursors.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (!data.peers.length) return;
+    const cursorFont = `500 11px ${getComputedStyle(element).fontFamily}`;
+    for (const peer of data.peers) {
+      const x = peer.x * c.z + c.x, y = peer.y * c.z + c.y, age = Math.max(0, now - peer.updatedAt);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > width || y > height || age > 12_000) continue;
+      cursors.save(); cursors.translate(x, y); cursors.globalAlpha = age > 7000 ? .55 : 1;
+      cursors.fillStyle = peer.color; cursors.strokeStyle = "#FFFFFF"; cursors.lineWidth = 1.6;
+      cursors.beginPath(); cursors.moveTo(0, 0); cursors.lineTo(2, 20); cursors.lineTo(8, 14); cursors.lineTo(15, 13); cursors.closePath(); cursors.fill(); cursors.stroke();
+      const action = peer.tool === "paint" ? " · painting a preview" : peer.tool === "note" ? " · leaving a fragment" : "";
+      const label = `${peer.name}${c.z > .35 ? action : ""}`;
+      cursors.font = cursorFont;
+      const labelWidth = Math.min(cursors.measureText(label).width + 16, Math.max(60, width - 16));
+      const preferredX = x + labelWidth + 12 > width ? x - labelWidth + 6 : x + 9;
+      const lx = Math.max(4, Math.min(width - labelWidth - 4, preferredX)) - x, ly = y + 48 > height ? -30 : 21;
+      cursors.fillStyle = peer.color; cursors.beginPath(); cursors.roundRect(lx, ly, labelWidth, 25, 4); cursors.fill();
+      cursors.fillStyle = "#FFFFFF"; cursors.fillText(label, lx + 8, ly + 16, labelWidth - 16); cursors.restore();
+    }
   }, []);
 
   const applyCamera = useCallback(() => {
@@ -80,34 +109,50 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
     element.style.setProperty("--grid-x", `${x}px`); element.style.setProperty("--grid-y", `${y}px`);
     const center = screenToWorld(camera.current, { x: element.clientWidth / 2, y: element.clientHeight / 2 });
     if (coordinate.current) coordinate.current.textContent = `x ${Math.round(center.x).toLocaleString()} · y ${Math.round(center.y).toLocaleString()}`;
-    if (miniView.current) {
-      miniView.current.setAttribute("x", String(-x / z)); miniView.current.setAttribute("y", String(-y / z));
-      miniView.current.setAttribute("width", String(element.clientWidth / z)); miniView.current.setAttribute("height", String(element.clientHeight / z));
-    }
     viewport.current = { width: element.clientWidth, height: element.clientHeight };
     latest.current.onCameraChange?.({ ...camera.current, ...viewport.current });
     setZoom(z < .01 ? Math.round(z * 1000) / 10 : Math.round(z * 100)); draw();
   }, [draw]);
 
+  const stopCamera = useCallback(() => {
+    if (cameraAnimation.current !== null) cancelAnimationFrame(cameraAnimation.current);
+    cameraAnimation.current = null;
+  }, []);
+  const animateCamera = useCallback((target: Camera, animate = true) => {
+    stopCamera();
+    if (!animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { camera.current = target; applyCamera(); return; }
+    const start = { ...camera.current }, began = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - began) / 650), eased = 1 - (1 - progress) ** 4;
+      camera.current = { x: start.x + (target.x - start.x) * eased, y: start.y + (target.y - start.y) * eased, z: start.z + (target.z - start.z) * eased };
+      applyCamera();
+      cameraAnimation.current = progress < 1 ? requestAnimationFrame(step) : null;
+    };
+    cameraAnimation.current = requestAnimationFrame(step);
+  }, [applyCamera, stopCamera]);
   const framePoints = useCallback((points: FramePoint[], single = false) => {
     const element = board.current;
     if (!element || !points.length) return;
-    camera.current = frameCamera(points, { width: element.clientWidth, height: element.clientHeight }, { padding: 42, maxZoom: single ? 1.1 : 1 });
-    applyCamera();
-  }, [applyCamera]);
+    const size = { width: element.clientWidth, height: element.clientHeight };
+    animateCamera(single ? storyCamera(points, size) : frameCamera(points, size, { padding: 42, maxZoom: 1 }));
+  }, [animateCamera]);
 
-  const entryView = useCallback(() => {
+  const entryView = useCallback((animate = true, closerMobile = false) => {
     const element = board.current;
     if (!element) return;
-    // These are the original landmark bounds, not the writable plane's limits.
-    framePoints(element.clientWidth < 700 ? [{ x: 300, y: 150, width: 660, height: 550 }] : [{ x: 0, y: 0, width: 1200, height: 720 }]);
-  }, [framePoints]);
+    const occupied = (closerMobile ? arrivalBounds : occupiedBounds)(latest.current.world.memories.map(memory => ({ ...memory, ...memorySize(memory) })), latest.current.world.pixels, GRID_SIZE);
+    const size = { width: element.clientWidth, height: element.clientHeight };
+    let target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: .85 });
+    if (closerMobile) target = zoomCameraAt(target, size.width < 700 ? 1.65 : Math.min(1.5, .85 / target.z), { x: size.width / 2, y: size.height / 2 });
+    animateCamera(target, animate);
+  }, [animateCamera]);
 
   useEffect(() => {
     const element = board.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
-      if (!initialized.current) { initialized.current = true; entryView(); }
+      stopCamera();
+      if (!initialized.current) { initialized.current = true; entryView(false, true); }
       else {
         camera.current.x += (element.clientWidth - viewport.current.width) / 2;
         camera.current.y += (element.clientHeight - viewport.current.height) / 2;
@@ -115,24 +160,29 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
       }
     });
     observer.observe(element);
-    return () => observer.disconnect();
-  }, [applyCamera, entryView]);
+    return () => { observer.disconnect(); stopCamera(); };
+  }, [applyCamera, entryView, stopCamera]);
 
   useEffect(() => {
     if (command.type === "restore" && command.camera && board.current) {
-      camera.current = { ...command.camera, x: command.camera.x + (board.current.clientWidth - command.camera.width) / 2, y: command.camera.y + (board.current.clientHeight - command.camera.height) / 2 };
-      applyCamera();
-    } else if (command.type === "fit" || command.key === 0) entryView();
+      animateCamera({ ...command.camera, x: command.camera.x + (board.current.clientWidth - command.camera.width) / 2, y: command.camera.y + (board.current.clientHeight - command.camera.height) / 2 });
+    } else if (command.type === "fit" || command.key === 0) entryView(command.key !== 0, command.key === 0);
     else if (command.points?.length) framePoints(command.points, command.type === "focus");
-  }, [command, entryView, framePoints, applyCamera]);
+  }, [command, entryView, framePoints, animateCamera]);
 
-  useEffect(() => { draw(); }, [world.pixels, pending, brush?.cells, brush?.enabled, draw]);
+  useEffect(() => { draw(); }, [world.pixels, pending, brush?.cells, brush?.enabled, peers, draw]);
+  useEffect(() => {
+    if (!peers.length) return;
+    const timer = setInterval(draw, 500);
+    return () => clearInterval(timer);
+  }, [peers.length, draw]);
   useEffect(() => {
     const element = board.current;
     if (!element) return;
     const wheel = (event: WheelEvent) => {
       if (event.target instanceof Element && event.target.closest(".canvas-overlay")) return;
       event.preventDefault();
+      stopCamera();
       if (event.ctrlKey || event.metaKey) {
         const rect = element.getBoundingClientRect();
         camera.current = zoomCameraAt(camera.current, Math.exp(-event.deltaY * .008), { x: event.clientX - rect.left, y: event.clientY - rect.top });
@@ -141,15 +191,25 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);
-  }, [applyCamera]);
+  }, [applyCamera, stopCamera]);
 
   const zoomBy = (multiplier: number) => {
     if (!board.current) return;
-    camera.current = zoomCameraAt(camera.current, multiplier, { x: board.current.clientWidth / 2, y: board.current.clientHeight / 2 });
-    applyCamera();
+    animateCamera(zoomCameraAt(camera.current, multiplier, { x: board.current.clientWidth / 2, y: board.current.clientHeight / 2 }));
   };
-  const move = (x: number, y: number) => { camera.current.x += x; camera.current.y += y; applyCamera(); };
+  const move = (x: number, y: number) => animateCamera({ ...camera.current, x: camera.current.x + x, y: camera.current.y + y });
   const localPoint = (point: Point) => { const rect = board.current!.getBoundingClientRect(); return { x: point.x - rect.left, y: point.y - rect.top }; };
+  const publishPointer = useCallback((point: Point, preview?: Pixel[]) => {
+    const element = board.current, data = latest.current;
+    if (!element || !data.onCursor) return;
+    const rect = element.getBoundingClientRect(), worldPoint = screenToWorld(camera.current, { x: point.x - rect.left, y: point.y - rect.top });
+    const tool = data.brush?.enabled || data.pending?.kind === "paint" ? "paint" : data.pending?.kind === "memory" ? "note" : "wander";
+    const cells = tool === "paint" ? preview ?? mergePaintCells(data.brush?.cells ?? [], stroke.current) : [];
+    data.onCursor({ ...worldPoint, tool, stroke: cells.slice(-128) });
+  }, []);
+  useEffect(() => {
+    if (lastPointer.current) publishPointer(lastPointer.current);
+  }, [brush?.cells, brush?.enabled, pending, publishPointer]);
   const paintAt = (point: Point) => {
     const g = gesture.current, currentBrush = latest.current.brush;
     if (!g || !currentBrush?.enabled || currentBrush.disabled) return;
@@ -161,9 +221,14 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
   };
   const finish = (pointerId: number, cancelled: boolean) => {
     const g = gesture.current, point = pointers.current.get(pointerId);
+    if (g?.moved) suppressCardClickUntil.current = performance.now() + 500;
     pointers.current.delete(pointerId);
     if (!pointers.current.size) {
-      if (g?.kind === "paint" && !cancelled && latest.current.brush && !latest.current.brush.disabled) latest.current.brush.onChange(mergePaintCells(latest.current.brush.cells, stroke.current));
+      if (g?.kind === "paint" && !cancelled && latest.current.brush && !latest.current.brush.disabled) {
+        const cells = mergePaintCells(latest.current.brush.cells, stroke.current);
+        latest.current.brush.onChange(cells);
+        if (point) publishPointer(point, cells);
+      } else if (point) publishPointer(point, latest.current.brush?.cells ?? []);
       if (g?.kind === "pan" && !g.moved && !cancelled && point && pending) { const worldPoint = screenToWorld(camera.current, localPoint(point)); onPosition(worldPoint.x, worldPoint.y); }
       gesture.current = null; stroke.current = []; draw();
     } else { gesture.current = null; stroke.current = []; draw(); }
@@ -174,31 +239,53 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
   const latestPaint = world.events.find(event => event.kind === "paint" && !event.isSeed);
 
   return <div className={`world-board${pending ? " is-placing" : ""}${brush?.enabled ? " is-brushing" : ""}`} ref={board} role="region" aria-label="The shared Memory Box world" data-world-revision={world.revision} data-tool={brush?.enabled ? "brush" : "hand"}
+    onClickCapture={event => {
+      // A drag may still synthesize a click in some pointer implementations.
+      // Native keyboard activation has detail=0 and always opens its original.
+      if (event.detail !== 0 && performance.now() < suppressCardClickUntil.current && event.target instanceof Element && event.target.closest(".memory-card")) { event.preventDefault(); event.stopPropagation(); }
+    }}
     onPointerDown={event => {
-      if (event.button !== 0 || (event.target instanceof Element && event.target.closest("button,input,textarea,select,.canvas-overlay"))) return;
-      const point = { x: event.clientX, y: event.clientY }; pointers.current.set(event.pointerId, point); event.currentTarget.setPointerCapture(event.pointerId); setGestureNotice("");
+      const card = event.target instanceof Element ? event.target.closest<HTMLElement>(".memory-card[data-memory-id]") : null;
+      if (event.button !== 0 || (event.target instanceof Element && (event.target.closest("input,textarea,select,.canvas-overlay") || (!card && event.target.closest("button"))))) return;
+      stopCamera();
+      suppressCardClickUntil.current = 0;
+      const point = { x: event.clientX, y: event.clientY }; pointers.current.set(event.pointerId, point); setGestureNotice("");
+      // Capture only after a card drag crosses the threshold. A short tap stays
+      // on the native button and opens once through its normal click handler.
+      if (!card) event.currentTarget.setPointerCapture(event.pointerId);
+      lastPointer.current = point;
       if (pointers.current.size === 2) {
+        for (const pointerId of pointers.current.keys()) event.currentTarget.setPointerCapture(pointerId);
         stroke.current = []; draw();
         const [a, b] = [...pointers.current.values()], middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         gesture.current = { kind: "pinch", start: middle, camera: { ...camera.current }, moved: true, distance: Math.hypot(b.x - a.x, b.y - a.y), anchor: screenToWorld(camera.current, localPoint(middle)) };
       } else if (pointers.current.size === 1) {
         const kind = brush?.enabled && !brush.disabled && !event.shiftKey && !event.altKey ? "paint" : "pan";
-        gesture.current = { kind, start: point, camera: { ...camera.current }, moved: false }; stroke.current = [];
+        gesture.current = { kind, start: point, camera: { ...camera.current }, moved: false, memoryId: card?.dataset.memoryId }; stroke.current = [];
         if (kind === "paint") paintAt(point);
       }
+      publishPointer(point);
     }}
     onPointerMove={event => {
-      if (!pointers.current.has(event.pointerId)) return;
-      const point = { x: event.clientX, y: event.clientY }; pointers.current.set(event.pointerId, point);
+      if (event.target instanceof Element && event.target.closest("input,textarea,select,.canvas-overlay")) return;
+      const point = { x: event.clientX, y: event.clientY }; lastPointer.current = point;
+      if (!pointers.current.has(event.pointerId)) { publishPointer(point); return; }
+      pointers.current.set(event.pointerId, point);
       const g = gesture.current;
-      if (!g) return;
+      if (!g) { publishPointer(point); return; }
       if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()], middle = localPoint({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         const next = zoomCameraAt(g.camera, Math.hypot(b.x - a.x, b.y - a.y) / Math.max(g.distance!, 1), localPoint(g.start));
         camera.current = { x: middle.x - g.anchor!.x * next.z, y: middle.y - g.anchor!.y * next.z, z: next.z }; applyCamera();
       } else if (g.kind === "paint") paintAt(point);
-      else { const dx = point.x - g.start.x, dy = point.y - g.start.y; g.moved ||= Math.hypot(dx, dy) > 5; camera.current = { ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy }; applyCamera(); }
-    }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
+      else {
+        const dx = point.x - g.start.x, dy = point.y - g.start.y;
+        g.moved ||= Math.hypot(dx, dy) > 5;
+        if (g.moved && g.memoryId && !event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
+        camera.current = { ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy }; applyCamera();
+      }
+      publishPointer(point);
+    }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />
     <div className="world-transformed" ref={transformed}>
       <svg className="memory-threads" width="1200" height="720" aria-hidden="true">{relationships.map(memory => {
@@ -207,17 +294,16 @@ export function WorldCanvas({ world, selectedId, foundIds, activeScene, onScene,
         const a = memorySize(original), b = memorySize(memory), x1 = original.x + a.width / 2, y1 = original.y + a.height, x2 = memory.x + b.width / 2, y2 = memory.y + b.height;
         return <path key={memory.id} d={`M${x1},${y1} C${x1},${Math.max(y1, y2) + 40} ${x2},${Math.max(y1, y2) + 40} ${x2},${y2}`} />;
       })}</svg>
-      {SCENES.map(scene => <button type="button" className={`scene-label${activeScene === scene.id ? " is-current" : ""}`} key={scene.id} style={{ left: SCENE_LABELS[scene.id].x, top: SCENE_LABELS[scene.id].y }} onClick={() => onScene(scene.id)}>{scene.title}<ArrowUpRight size={13} /></button>)}
       {world.memories.map(memory => <MemoryCard key={memory.id} memory={memory} selected={selectedId === memory.id} number={foundIds.includes(memory.id) ? foundIds.indexOf(memory.id) + 1 : undefined} dimmed={foundIds.length > 0 && !foundIds.includes(memory.id)} parentName={memory.inspiredBy ? memoryMap.get(memory.inspiredBy)?.authorName : undefined} onOpen={() => { if (!pending && !brush?.enabled) onOpen(memory.id); }} />)}
       {pending?.memory ? <MemoryCard memory={pending.memory} pending parentName={pending.memory.inspiredBy ? memoryMap.get(pending.memory.inspiredBy)?.authorName : undefined} /> : null}
     </div>
+    <canvas ref={cursorCanvas} className="world-cursors" aria-hidden="true" data-peer-cursors={JSON.stringify(peers.slice(0, 100).map(({ sessionId, x, y, color, tool }) => ({ sessionId, x, y, color, tool })))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 11 }} />
     <span className="world-coordinate canvas-overlay" ref={coordinate} aria-label="Coordinates of the center of the view" />
-    <span className="canvas-guidance canvas-overlay">{gestureNotice || (zoom < 15 ? "Overview · tap a memory pin or zoom in" : brush?.enabled ? "Draw pixels · pinch to zoom · Shift + drag to pan" : pending ? "Tap to place · drag to explore" : "Drag to wander · pinch to zoom")}</span>
+    <span className="canvas-guidance canvas-overlay">{gestureNotice || (zoom < 15 ? "The whole mosaic · zoom into a fragment" : brush?.enabled ? "Draw a preview · pinch to zoom · Shift + drag to pan" : pending ? "Tap to place · drag to explore" : "Drag to wander · pinch to zoom")}</span>
     {children}
-    <div className="canvas-minimap canvas-overlay" aria-hidden="true"><svg viewBox="0 0 1200 720"><rect x="80" y="380" width="210" height="170" fill="#EAC8DC" /><rect x="360" y="240" width="430" height="230" fill="#CEC3EF" /><rect x="940" y="280" width="210" height="110" fill="#EEDB9C" /><rect ref={miniView} className="minimap-viewport" fill="#3659DB0A" stroke="#6D86DE" strokeWidth="12" /></svg></div>
     <div className="canvas-zoom canvas-overlay">
       <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out"><Minus size={17} /></button><span>{zoom}%</span><button type="button" onClick={() => zoomBy(1.25)} aria-label="Zoom in"><Plus size={17} /></button><span className="zoom-divider" />
-      <button type="button" onClick={entryView} aria-label="Return to the commons"><Maximize2 size={16} /></button><button type="button" onClick={() => setPanOpen(!panOpen)} aria-label="Move the view" aria-expanded={panOpen}><Compass size={17} /></button>
+      <button type="button" onClick={() => entryView()} aria-label="See the whole mosaic"><Maximize2 size={16} /></button><button type="button" onClick={() => setPanOpen(!panOpen)} aria-label="Move the view" aria-expanded={panOpen}><Compass size={17} /></button>
       {panOpen ? <div className="pan-controls"><button type="button" aria-label="Pan up" onClick={() => move(0, 100)}><ArrowUp size={17} /></button><button type="button" aria-label="Pan left" onClick={() => move(100, 0)}><ArrowLeft size={17} /></button><button type="button" aria-label="Pan down" onClick={() => move(0, -100)}><ArrowDown size={17} /></button><button type="button" aria-label="Pan right" onClick={() => move(-100, 0)}><ArrowRight size={17} /></button></div> : null}
     </div>
     <div className="canvas-footnote canvas-overlay">{latestPaint ? `@${latestPaint.authorName} · ${latestPaint.description}` : "A shared picture. Room for your next idea."}</div>

@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { shapePixels, suggestedSpot } from "../src/lib/scenes";
+import { SHAPES, shapePixels, suggestedSpot, type ShapeId } from "../src/lib/scenes";
 import type { Memory } from "../src/lib/types";
 
 describe("sparse world placement", () => {
+  it("keeps every playful stamp inside one durable paint operation", () => {
+    for(const shape of Object.keys(SHAPES) as ShapeId[]) {
+      const cells=shapePixels(shape,"#BDA9E9",-120,480);
+      expect(cells.length).toBeGreaterThan(0);expect(cells.length).toBeLessThanOrEqual(144);
+      expect(new Set(cells.map(c=>`${c.x},${c.y}`)).size).toBe(cells.length);
+      expect(cells.every(c=>/^#[0-9A-F]{6}$/.test(c.color))).toBe(true);
+    }
+  });
   it("lets stamps cross the former board edges and appear at negative coordinates", () => {
     expect(shapePixels("pixel", "#FFFFFF", -6, -12)).toEqual([{x:-1,y:-2,color:"#FFFFFF"}]);
     expect(shapePixels("pixel", "#FFFFFF", 1200, 720)).toEqual([{x:200,y:120,color:"#FFFFFF"}]);

@@ -3,7 +3,7 @@
 import { ArrowRight, Globe2, Image as ImageIcon, ImagePlus, Link2, Type, X } from "lucide-react";
 import { useRef } from "react";
 import type { Memory, MemoryType, SceneId } from "@/lib/types";
-import { PAPER_COLORS, SCENES } from "@/lib/scenes";
+import { PAPER_COLORS } from "@/lib/scenes";
 
 export interface MemoryDraft {
   clientId: string; type: MemoryType; title: string; body: string; url: string; color: string;
@@ -40,7 +40,7 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
     <label className="field">{draft.type === "text" ? "A title, if you want" : "A short title"}<input value={draft.title} onChange={(event) => change({ title: event.target.value })} maxLength={80} placeholder="Give this a name" /></label>
     <label className="field">{draft.type === "text" ? (parent ? "What did it bring to mind?" : "Your memory or idea") : "The story behind it"}<textarea value={draft.body} onChange={(event) => change({ body: event.target.value })} maxLength={2000} rows={5} placeholder={parent ? "A memory of your own. A response. Something to carry further." : draft.type === "image" ? "What is this, or why are you leaving it?" : "Something you remember. Something you wish existed."} /><span className="field-counter" aria-hidden="true">{draft.body.length}/2000</span></label>
     {draft.type === "text" ? <div className="paper-picker"><span>Paper</span><div>{PAPER_COLORS.map((color, index) => <button type="button" key={color} className="color-swatch" style={{ background: color }} aria-pressed={draft.color === color} aria-label={`${["Butter", "Lilac", "Blush", "Peach", "Ice"][index]} paper`} onClick={() => change({ color })} />)}</div></div> : null}
-    {!draft.editId ? <label className="field field-inline">Place in<select value={sceneId} onChange={(event) => onSceneChange(event.target.value as SceneId)}>{SCENES.map((scene) => <option key={scene.id} value={scene.id}>{scene.title}</option>)}</select></label> : null}
+    {!draft.editId ? <p className="fine-print">Choose any spot in the world. Leave it beside a drawing, a stranger’s story, or somewhere nobody has been yet.</p> : null}
     {error ? <p className="form-error" role="alert">{error}</p> : null}
     <button type="submit" className="button button-primary button-full" disabled={!!busy}>{busy || (draft.editId ? "Save changes" : "Choose its place")}{!busy ? <ArrowRight size={16} /> : <span className="spinner" />}</button>
     <p className="fine-print">{draft.editId ? "Your original keeps its place and connections." : parent ? "Your words and images stay yours as the shared picture grows." : "Leave anything here. This scene is just a starting point."}</p>

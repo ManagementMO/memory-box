@@ -2,16 +2,38 @@ import { expect, test as base, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type { AnswerResponse, Memory, SearchResponse, WorldSnapshot } from "../../src/lib/types";
-import { browserEnabled, cameraState, readMemory, sameOrigin, WorldFixture, writesEnabled } from "./helpers/open-world-fixture";
+import { browserEnabled, cameraState, sameOrigin, WorldFixture, writesEnabled } from "./helpers/open-world-fixture";
 
 // Opt-in only. Even UI-only cases create disposable real guest identities.
 // MB_E2E_OPEN_WORLD=1 enables navigation with synthetic Find/Ask responses.
 // MB_E2E_WRITE=1 additionally permits real publish/upload/paint transactions.
 // MB_E2E_AI=1 additionally permits one real answer request per browser project.
 const test = base.extend<{ world: WorldFixture }>({
-  world: async ({ page: _page }, use, info) => {
+  world: async ({ page }, use, info) => {
     const fixture = new WorldFixture(info);
-    try { await use(fixture); } finally { await fixture.cleanup(); }
+    const connectionResponses: Array<{ path: string; status: number; code: string | null }> = [];
+    page.on("request", request => {
+      const path=new URL(request.url()).pathname;
+      if (path==="/auth/v1/signup") connectionResponses.push({path,status:-1,code:"requested"});
+    });
+    page.on("requestfailed", request => {
+      const path=new URL(request.url()).pathname;
+      if (["/auth/v1/signup", "/api/world"].includes(path)) connectionResponses.push({path,status:0,code:request.failure()?.errorText?.slice(0,100)??null});
+    });
+    page.on("response", async response => {
+      const path=new URL(response.url()).pathname;
+      if (!["/auth/v1/signup", "/api/world"].includes(path)) return;
+      if (response.ok()) { connectionResponses.push({path,status:response.status(),code:null});return; }
+      const body=await response.json().catch(()=>({})),value=body.error_code ?? body.code;
+      connectionResponses.push({path,status:response.status(),code:typeof value === "string" ? value.slice(0,100) : null});
+    });
+    try { await use(fixture); } finally {
+      if (info.status !== info.expectedStatus && connectionResponses.length) {
+        console.info("Safe connection diagnostics:",JSON.stringify(connectionResponses));
+        await info.attach("connection-status.json", {body:Buffer.from(JSON.stringify(connectionResponses)),contentType:"application/json"});
+      }
+      await fixture.cleanup();
+    }
   },
 });
 test.skip(!browserEnabled, "Set MB_E2E_OPEN_WORLD=1 only after coordinating the disposable pilot run.");
@@ -22,9 +44,18 @@ const viewport = (page: Page) => page.getByRole("region", { name: "The shared Me
 const panel = (page: Page) => page.locator(".context-panel");
 const quoteRegex = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 
+async function readMemory(page: Page, memory: Pick<Memory, "title">) {
+  const browse = page.getByRole("button", { name: "Browse", exact: true });
+  if (!await browse.isVisible()) await page.getByRole("button", { name: "Who is here", exact: true }).click();
+  await browse.click();
+  await page.locator(".context-panel .memory-result").filter({ hasText: memory.title }).click();
+  await expect(page.locator(".original-title")).toHaveText(memory.title);
+}
+
 async function submitFind(page: Page, query: string) {
-  await page.getByRole("textbox", { name: "Find a memory or ask the box", exact: true }).fill(query);
-  await page.getByRole("button", { name: "Search or ask", exact: true }).click();
+  await page.getByRole("button", { name: "Find a memory or ask the box", exact: true }).click();
+  await page.getByRole("textbox", { name: "Search memories", exact: true }).fill(query);
+  await page.getByRole("button", { name: "Find memories", exact: true }).click();
 }
 
 async function expectCamera(page: Page, expected: Awaited<ReturnType<typeof cameraState>>) {
@@ -43,7 +74,8 @@ async function worldPoint(page: Page, radius = 18) {
       if ([x - radius, x, x + radius].every(px => {
         const target = document.elementFromPoint(px, y);
         return px > 0 && px < innerWidth && y > 0 && y < innerHeight && target && element.contains(target)
-          && !target.closest("button,input,textarea,select,.canvas-overlay");
+          && !target.closest("input,textarea,select,.canvas-overlay")
+          && (!target.closest("button") || !!target.closest(".memory-card"));
       })) return { x, y };
     }
     throw new Error("No unobstructed visible part of the shared world is available for the gesture.");
@@ -93,6 +125,13 @@ async function publishDraft(page: Page): Promise<Memory> {
 }
 
 async function expectRenderedPixel(page: Page, cell: { x: number; y: number; color: string }, gridSize: number) {
+  // Entry now fits actual occupied originals, including another parallel
+  // fixture's distant place. An individual 6px cell is intentionally subpixel
+  // at that scale; use the real zoom controls before judging its raster color.
+  for (let step=0; step<30 && (await cameraState(page)).zoom<1; step++) {
+    await page.getByRole("button", {name:"Zoom in",exact:true}).click();
+  }
+  expect((await cameraState(page)).zoom).toBeGreaterThanOrEqual(1);
   const expected = [1, 3, 5].map(offset => parseInt(cell.color.slice(offset, offset + 2), 16));
   await expect.poll(() => page.locator(".world-pixels").evaluate((element, { cell, gridSize }) => {
     const canvas = element as HTMLCanvasElement;
@@ -181,7 +220,9 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   for (const memory of [sources[0], sources.at(-1)!]) {
     const card = page.locator(".world-transformed").getByRole("button", { name: quoteRegex(memory.title) });
     await expect(card).toBeInViewport();
-    const bounds = await card.boundingBox();
+    // Papers keep their spatial scale; the result marker is the accessible
+    // screen-sized target when a search spans the full signed plane.
+    const bounds = await card.locator(".memory-number").boundingBox();
     expect(bounds!.width).toBeGreaterThanOrEqual(20);
     expect(bounds!.x + bounds!.width / 2).toBeGreaterThanOrEqual(frame!.x);
     expect(bounds!.x + bounds!.width / 2).toBeLessThanOrEqual(frame!.x + frame!.width);
@@ -193,14 +234,14 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   const lastResult = panel(page).locator(".memory-result").last();
   await lastResult.scrollIntoViewIfNeeded();
   const findScroll = await scrollState(page);
-  expect(info.project.name === "mobile" ? findScroll.window : findScroll.panel).toBeGreaterThan(100);
+  expect(findScroll.panel).toBeGreaterThan(100);
   await lastResult.click();
   await expect(page.locator(".original-body")).toHaveText(sources.at(-1)!.body);
-  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "Original memory", exact: true })).toBeInViewport();
+  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "In their own words", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Show in canvas", exact: true }).click();
   await expect(panel(page)).toHaveCount(0);
   await page.getByRole("button", { name: "Back to results", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Find a memory or ask the box", exact: true })).toHaveValue(query);
+  await expect(page.getByRole("textbox", { name: "Search memories", exact: true })).toHaveValue(query);
   await expectCamera(page, findCamera);
   await expectScroll(page, findScroll);
   await expect(panel(page).locator(".memory-result").last()).toBeFocused();
@@ -216,10 +257,10 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   const citation = page.getByRole("button", { name: `Open source ${sources.length}`, exact: true });
   await citation.scrollIntoViewIfNeeded();
   const askScroll = await scrollState(page);
-  expect(info.project.name === "mobile" ? askScroll.window : askScroll.panel).toBeGreaterThan(100);
+  expect(askScroll.panel).toBeGreaterThan(100);
   await citation.click();
   await expect(page.locator(".original-body")).toHaveText(sources.at(-1)!.body);
-  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "Original memory", exact: true })).toBeInViewport();
+  if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "In their own words", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Show in canvas", exact: true }).click();
   await page.getByRole("button", { name: "Back to answer", exact: true }).click();
   await expectCamera(page, askCamera);
@@ -235,7 +276,7 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   await page.route(/\/api\/(paint|memories|uploads)(\/|$)/, route => { writes++; return route.abort(); });
   await page.getByRole("button", { name: "Paint", exact: true }).click();
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Explore canvas", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
   await panel(page).getByRole("button", { name: "Draw pixels", exact: true }).click();
   await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
   const point = await worldPoint(page);
@@ -280,7 +321,7 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   const draft = "A recoverable unpublished draft from the browser test.";
   await page.locator(".composer textarea").fill(draft);
   await expect(page.getByRole("button", { name: "Leave", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Explore canvas", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(viewport(page)).toHaveAttribute("data-tool", "hand");
   await panel(page).getByRole("button", { name: "Choose its place", exact: true }).click();
   await page.getByRole("button", { name: "Cancel placement", exact: true }).click();
   await expect(page.locator(".composer textarea")).toHaveValue(draft);
@@ -420,7 +461,8 @@ test("a provider-backed answer opens its actual cited original and returns witho
   test.skip(process.env.MB_E2E_AI !== "1", "Live generation requires MB_E2E_AI=1 and a coordinated allowance.");
   test.setTimeout(90_000);
   await world.connect(page);
-  await page.getByRole("textbox", { name: "Find a memory or ask the box", exact: true }).fill("What have people shared about music and family?");
+  await page.getByRole("button", { name: "Find a memory or ask the box", exact: true }).click();
+  await page.getByRole("textbox", { name: "Search memories", exact: true }).fill("What have people shared about music and family?");
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   let calls = 0;
   page.on("request", request => { if (new URL(request.url()).pathname === "/api/ask") calls++; });

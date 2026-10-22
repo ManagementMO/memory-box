@@ -1,6 +1,6 @@
 # Memory Box
 
-A little world we leave together. Paint a shared picture, leave an original memory, build on someone else's contribution, and ask the box what connects it all.
+A world of little lives. Get lost in a sprawling mosaic, paint something ridiculous together, leave an original memory, and follow what grows beside it.
 
 **[Open the live commons](https://memory-box-commons.vercel.app)**
 
@@ -8,21 +8,23 @@ Memory Box combines a large sparse collaborative pixel world with an attributed 
 
 ## Try the loop
 
-1. Open the commons and choose the mixtape, frog pond, or growing garden.
-2. Choose **Paint**, draw a preview, then **Add my pixels**. You can also place a small shape. Changes arrive in other visitors' browsers through Supabase Realtime.
-3. Leave text, a PNG/JPEG/WebP image, or a link at a chosen place. Give yourself a name if you like.
-4. Open someone else's memory and choose **Build on this**. Your contribution gets its own author and a thread back to the original.
-5. Use **Find** for exact words or meaning. Try “childhood road trips.”
-6. Switch to **Ask**, enter “What do these memories say about music and family?”, then submit with **Ask the box**. The box selects passages in people's own words and shows recorded build-on connections, with links to the originals. A question with insufficient material gets an honest empty answer.
+1. Open the living mosaic. Drag, pinch or zoom; choose **Wander** to stumble into an actual original. **World** fits the complete occupied world, including faraway contributions.
+2. Choose **Build together** to join a live painter, or start with an unfinished landmark: the night train, bread bus, very large cat, goose or unofficial soup waiting room.
+3. Choose **Paint**, draw a preview, then **Add my pixels**. Visitors can see real cursors and faint temporary brush strokes before you commit. You can also leave a small goose, cat, carriage or other stamp. Accepted changes are durable and arrive in other visitors' browsers through Supabase Realtime.
+4. Leave text, a PNG/JPEG/WebP image, or a link at a chosen place. Give yourself a name if you like.
+5. Open someone else's memory and choose **Build on this**. Your contribution gets its own author and a thread back to the original.
+6. Use the quiet **Find / ask** entry for exact words or meaning. Try “childhood road trips.”
+7. Switch to **Ask**, enter “What do these memories say about music and family?”, then submit with **Ask the box**. The box selects passages in people's own words and shows recorded build-on connections, with links to the originals. A question with insufficient material gets an honest empty answer.
 
-Ten clearly marked fictional starter memories and the initial pixel landmarks make the first visit explorable. They are examples, not evidence of real community activity.
+The additive living-world expansion contains 84 distinct fictional originals, eight original illustrations and 5,081 editable pixel cells, beside the original ten starters. They are marked examples, not evidence of real community activity. Online visitor counts and moving cursors come only from connected browser sessions; no simulated visitors run in the app.
 
 ## What is real
 
 - Anonymous Supabase Auth identities persist in the current browser. Ownership is checked on the server and in database transactions.
-- The white/pastel world pans freely, supports anchored zoom and mobile pinch, and renders into a viewport-sized canvas. Distant search results become readable pins; opening an original and returning preserves the question, view, scroll position, and source focus.
+- The white/pastel world pans freely, supports anchored zoom and mobile pinch, and renders into viewport-sized canvases. Faraway originals remain paper/photos in the mosaic; numbered search markers retain screen size. Opening an original and returning preserves the question, view, scroll position, and source focus. Desktop readers float beside the chosen place; mobile readers sit above the dock. First arrival chooses a dense occupied neighborhood so one distant mark cannot shrink everything to a dot.
 - Pixel operations are durable and idempotent. Undo restores only cells that a later operation has not changed.
 - Realtime broadcasts carry revision metadata. The client refreshes an atomic database snapshot and resynchronizes after reconnecting; a 15-second refresh is the fallback.
+- A separate private presence topic tracks actual tab membership and broadcasts cursors at most four times per second. Hints are bounded, expire, and leave on tab visibility/close. Cursor names are participant-chosen display text, never authorization. Transient previews cannot save pixels or send authoritative revision notices.
 - Images upload directly into a private staging bucket. The server decodes, resizes, strips metadata, and re-encodes them to WebP before publication. Unattached staging files never become public.
 - Text is immediately searchable. A durable, versioned job describes images and computes embeddings. Postgres full-text search and pgvector candidates are combined with reciprocal-rank fusion.
 - Ask lets the model select exact excerpts and relevant recorded connections from at most eight retrieved originals. Code checks each quotation against its selected field and derives all attribution, parent identities and citations from those originals; arbitrary model prose is not published. Machine image descriptions are labeled separately. Selection relevance, excerpt context and the truth of authored memories/image descriptions remain quality limits. Source versions/visibility are checked again after selection; edits/deletions invalidate vectors and open answers.
@@ -73,6 +75,8 @@ npm run seed
 The private function secret file contains `EMBEDDING_SECRET`, matching the app environment. The function deliberately uses its own strong `x-memory-box-key` authentication; disabling the gateway JWT check does not make it an unauthenticated embedding endpoint. Enable anonymous sign-ins in Supabase Auth. The migrations install the buckets, policies, database functions, and Realtime authorization.
 
 `npm run seed` preserves existing visitor paint and memories on repeat runs. Server credentials belong only in server/CLI environments. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` go to the browser.
+
+The optional living-mosaic expansion is prepared separately with `npx tsx scripts/seed-living-world.ts --sql ../work/living-world.sql`. Review that generated transaction, deploy its bundled illustrations, then apply it with `supabase db query --linked --file ../work/living-world.sql`. It only inserts missing cells/originals, locks the authoritative world row, and records one honest starter event. An exact operation marker makes successful reruns no-ops, including after later visitor edits. It never recreates a removed starter on a successful repeat. Normal indexing budgets still apply, so new words are immediately searchable while semantic/image indexing can continue in the background.
 
 ## Validate
 

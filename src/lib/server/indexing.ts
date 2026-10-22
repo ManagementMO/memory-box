@@ -4,11 +4,13 @@ import sharp from "sharp";
 import type { Memory } from "../types";
 import { adminClient, completeIndexJob, failIndexJob, getIndexJobs, getReadableAsset } from "./database";
 import { AIServiceError, describeImage, embedText, getAIModels } from "./ai";
+import { trustedSeedImagePath } from "./trusted-seed-image";
 
 async function imageForMemory(memory: Memory) {
   if (memory.type !== "image" || !memory.imageUrl) return null;
-  if (/^\/seed-[a-z-]+\.svg$/.test(memory.imageUrl)) {
-    const original = await readFile(path.join(process.cwd(), "public", memory.imageUrl.slice(1)));
+  const seedPath = trustedSeedImagePath(memory);
+  if (seedPath) {
+    const original = await readFile(path.join(process.cwd(), "public", seedPath));
     return {bytes: await sharp(original).webp().toBuffer(), mime:"image/webp", assetId:null};
   }
   const assetId = memory.imageUrl.match(/^\/api\/assets\/([a-f0-9-]{36})$/)?.[1];
