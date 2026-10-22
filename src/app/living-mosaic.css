@@ -107,7 +107,6 @@
 .living-mosaic-app .world-loading { height: var(--world-height); min-height: 420px; }
 @media (max-width: 1050px) {
  .living-mosaic-app .canvas-dock>button { padding-inline: 7px; }
- .living-mosaic-app .canvas-dock>button:nth-last-child(-n+3)>span { display: none; }
  .living-mosaic-app .header-motto { display: none; }
 }
 @media (max-width: 700px) {
@@ -142,7 +141,6 @@
  .living-mosaic-app .world-coordinate,.living-mosaic-app .canvas-guidance { display: none; }
  .living-mosaic-app .canvas-dock { left: 10px; right: 10px; bottom: 13px; max-width: none; padding: 4px; gap: 0; justify-content: space-between; }
  .living-mosaic-app .canvas-dock>button,.living-mosaic-app.has-panel .canvas-dock>button { min-width: 36px; min-height: 42px; padding: 6px; font-size: 11px; gap: 5px; }
- .living-mosaic-app .canvas-dock>button>span { display: none; }
  .living-mosaic-app .canvas-dock>.wander-button>span,.living-mosaic-app .canvas-dock>.together-button>span { display: inline; }
  .living-mosaic-app .canvas-dock>span { margin: 0 2px; }
  .living-mosaic-app .canvas-zoom { right: 10px; bottom: 76px; padding: 3px; }
@@ -170,7 +168,6 @@
  .living-mosaic-app .presence-stack>span:not(.self-dot) { display: none; }
  .living-mosaic-app .canvas-dock { left: 7px; right: 7px; }
  .living-mosaic-app .canvas-dock>button { min-width: 36px; padding-inline: 5px; }
- .living-mosaic-app .canvas-dock>.together-button>span { display: none; }
  .living-mosaic-app .canvas-dock>.wander-button>span { display: inline; }
  .living-mosaic-app .canvas-paint-bar>.paint-preview-count { flex-basis: auto; }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Compass, Maximize2, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Compass, Maximize2, Minus, Plus } from "./pixel-icons";
+import { ToolButton } from "./tool-button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Memory, Pixel, SceneId, WorldSnapshot } from "@/lib/types";
 import { memorySize } from "@/lib/scenes";
@@ -311,8 +312,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));}}>{option.label}</button>)}
     </div>
     <div className="canvas-zoom canvas-overlay">
-      <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out"><Minus size={17} /></button><span>{zoom}%</span><button type="button" onClick={() => zoomBy(1.25)} aria-label="Zoom in"><Plus size={17} /></button><span className="zoom-divider" />
-      <button type="button" onClick={() => entryView()} aria-label="See the whole mosaic"><Maximize2 size={16} /></button><button type="button" onClick={() => setPanOpen(!panOpen)} aria-label="Move the view" aria-expanded={panOpen}><Compass size={17} /></button>
+      <ToolButton onClick={() => zoomBy(1 / 1.25)} label="Zoom out"><Minus size={24} /></ToolButton><span>{zoom}%</span><ToolButton onClick={() => zoomBy(1.25)} label="Zoom in"><Plus size={24} /></ToolButton><span className="zoom-divider" />
+      <ToolButton onClick={() => entryView()} label="See the whole mosaic"><Maximize2 size={24} /></ToolButton><ToolButton onClick={() => setPanOpen(!panOpen)} label="Move the view" aria-expanded={panOpen}><Compass size={24} /></ToolButton>
       {panOpen ? <div className="pan-controls"><button type="button" aria-label="Pan up" onClick={() => move(0, 100)}><ArrowUp size={17} /></button><button type="button" aria-label="Pan left" onClick={() => move(100, 0)}><ArrowLeft size={17} /></button><button type="button" aria-label="Pan down" onClick={() => move(0, -100)}><ArrowDown size={17} /></button><button type="button" aria-label="Pan right" onClick={() => move(-100, 0)}><ArrowRight size={17} /></button></div> : null}
     </div>
     <div className="canvas-footnote canvas-overlay">{latestPaint ? `@${latestPaint.authorName} · ${latestPaint.description}` : "A shared picture. Room for your next idea."}</div>

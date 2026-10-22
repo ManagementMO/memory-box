@@ -1,4 +1,4 @@
-import { ArrowUpRight, Image as ImageIcon, Link2, Quote } from "lucide-react";
+import { ArrowUpRight, Image as ImageIcon, Link2, Quote } from "./pixel-icons";
 import type { Memory } from "@/lib/types";
 import { memorySize } from "@/lib/scenes";
 import type { CSSProperties } from "react";
