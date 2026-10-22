@@ -1,0 +1,27 @@
+/* Extensions to the established compact pixel materials, not another shell. */
+.build-invitation-toggle { display: flex; align-items: center; gap: 9px; min-height: 44px; margin: 2px 0 8px; padding: 6px 2px; cursor: pointer; color: #554064; font-size: 12px; line-height: 1.35; }
+.build-invitation-toggle input { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: #76528e; }
+.build-invitation-toggle small { display: block; margin-top: 3px; font-size: 11px; color: #71567b; }
+.memory-build-badge { position: absolute; right: -3px; bottom: -6px; display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: #f0e4ff; color: #55396b; font: 13px/1.2 var(--font-pixelify), sans-serif; box-shadow: 0 2px 5px #42214b18; }
+.build-workbench h3 { margin: 0; font: 500 23px/1.1 var(--font-pixelify), sans-serif; overflow-wrap: anywhere; }
+.build-author { margin: 6px 0 12px; color: #71567b; font-size: 11px; }
+.build-reference { display: block; width: 100%; max-height: 130px; object-fit: contain; margin: 0 0 10px; background: #fffaf4; }
+.build-request { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 14px; font-size: 13px; line-height: 1.5; }
+.build-tools { display: flex; flex-wrap: wrap; gap: 7px; }
+.build-tools .button:first-child { width: 100%; }
+.build-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 12px 0 4px; }
+.build-workbench > .fine-print { margin-top: 10px; }
+.build-unavailable { display: grid; gap: 8px; }
+.build-unavailable p { margin: 0; }
+.open-build-list { margin: 12px 0 18px; }
+.open-build-list .memory-result:last-child { border-bottom: none; }
+.joined-build-return { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 44px; padding: 5px 7px; margin: 0 0 9px; color: #55396b; text-align: left; background: #f4ecff; border: 1px solid #e3d1f0; border-radius: 5px; }
+.joined-build-return > span { min-width: 0; flex: 1; }
+.joined-build-return strong { display: block; font: 500 15px/1.2 var(--font-pixelify), sans-serif; }
+.joined-build-return small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; margin-top: 2px; }
+.together-panel > .live-build-link { margin: 8px 0 16px; }
+@media (max-width: 700px) {
+  .build-tools .button { min-height: 44px; }
+  .build-links .text-button, .build-workbench > .text-button { min-height: 44px; }
+  .build-workbench .build-request { margin-bottom: 10px; }
+}

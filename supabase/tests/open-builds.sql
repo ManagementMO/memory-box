@@ -42,6 +42,9 @@ begin
  assert (select count(*)=before_jobs from public.index_jobs where memory_id=(saved->>'id')::uuid),'no-op adds no index job';
  ordinary:=public.mb_create_memory(actor,jsonb_build_object('clientId',gen_random_uuid(),'type','text','body','Just a memory.','color','#FFF3BF','x',800,'y',800,'sceneId','mixtape'));
  assert ordinary->>'isBuildInvitation'='false','ordinary and older clients default false';
+ changed:=public.mb_update_memory(actor,(ordinary->>'id')::uuid,1,'{"isBuildInvitation":true}');
+ perform public.mb_delete_memory(actor,(ordinary->>'id')::uuid);
+ assert exists(select 1 from public.memories where id=(ordinary->>'id')::uuid and visibility='deleted' and body=''),'an open invitation can be withdrawn and its words erased';
  perform public.mb_delete_memory(actor,(saved->>'id')::uuid);
  assert exists(select 1 from public.memories where id=(child->>'id')::uuid and visibility='published'),'source removal preserves other authors responses';
  assert not exists(select 1 from jsonb_array_elements(public.mb_snapshot()->'memories') m where m->>'id'=saved->>'id'),'withdrawn source leaves current discovery';

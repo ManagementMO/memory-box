@@ -3,6 +3,11 @@ import { floatingStoryPosition, neighborhoodCamera } from "../src/lib/client/sto
 
 const source={x:4300,y:240,width:205,height:110};
 describe("spatial story discovery",()=>{
+  it("leaves room for the phone dock border and a gap below floating build tools",()=>{
+    const viewport={width:320,height:584};
+    const overlay=floatingStoryPosition({x:0,y:0,z:1},source,viewport,{width:304,height:384},"compose");
+    expect(overlay.y+384).toBeLessThanOrEqual(viewport.height-82);
+  });
   it.each([{width:1440,height:844},{width:390,height:788},{width:320,height:684}])("keeps the original in view with neighbors at $width px",viewport=>{
     const camera=neighborhoodCamera(source,[source,{...source,x:4550},{...source,x:-59000}],viewport);
     const x=camera.x+(source.x+source.width/2)*camera.z;

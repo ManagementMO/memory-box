@@ -1,4 +1,4 @@
-import { ArrowUpRight, Image as ImageIcon, Link2, Quote } from "./pixel-icons";
+import { ArrowUpRight, Image as ImageIcon, Link2, Quote, UsersRound } from "./pixel-icons";
 import type { Memory } from "@/lib/types";
 import { memorySize } from "@/lib/scenes";
 import type { CSSProperties } from "react";
@@ -16,6 +16,7 @@ export function MemoryCard({ memory, selected, number, dimmed, parentName, onOpe
       : memory.type === "link" ? <span className="memory-link"><Link2 size={16} /><strong>{memory.title || memory.body}</strong><span>@{memory.authorName}</span></span>
         : <span className="memory-paper"><span className="memory-compact-title">{overviewLabel(memory)}</span><span className="memory-paper-copy">{memory.body || memory.title}</span><span className="memory-author">@{memory.authorName}</span></span>}
     {parentName ? <span className="memory-thread-tab">↳ from @{parentName}</span> : null}
+    {memory.isBuildInvitation ? <span className="memory-build-badge"><UsersRound size={12}/>Open build</span> : null}
     {number ? <span className="memory-number">{number}</span> : null}
   </>;
   const className = `memory-card ${memory.type} material-${memoryMaterial(memory)}${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}${pending ? " is-pending" : ""}${arrived?" is-arriving":""}`;
@@ -27,7 +28,7 @@ export function MemoryResult({ memory, index, onOpen, match }: { memory: Memory;
     <span className="result-thumb" style={{ background: memory.type === "text" ? memory.color : undefined }}>
       {memory.type === "image" && memory.imageUrl ? <img src={memory.imageUrl} alt="" /> : memory.type === "image" ? <ImageIcon size={18} /> : memory.type === "link" ? <Link2 size={18} /> : <Quote size={18} />}
     </span>
-    <span className="result-copy"><span className="result-title">{index !== undefined ? <span className="result-number">{String(index + 1).padStart(2, "0")}</span> : null}{originalLabel(memory)}</span><span className="result-meta">@{memory.authorName} · {memory.type}{memory.isSeed ? " · starter memory" : ""}</span>{match ? <span className="result-match">{match}</span> : null}</span>
+    <span className="result-copy"><span className="result-title">{index !== undefined ? <span className="result-number">{String(index + 1).padStart(2, "0")}</span> : null}{originalLabel(memory)}</span><span className="result-meta">@{memory.authorName} · {memory.isBuildInvitation ? "open build" : memory.type}{memory.isSeed ? " · starter memory" : ""}</span>{match ? <span className="result-match">{match}</span> : null}</span>
     <ArrowUpRight size={14} className="result-arrow" />
   </button>;
 }
