@@ -106,9 +106,14 @@ test("two visitors discover an authored build, paint and leave linked notes and 
   await expect(page.getByRole("button",{name:"Start a build here",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Start a build here",exact:true}).click();
   await expect(page.getByRole("checkbox",{name:/Invite people to build here/})).toBeChecked();
+  expect(await page.getByRole("checkbox",{name:/Invite people to build here/}).evaluate(element=>getComputedStyle(element).appearance)).not.toBe("none");
   const title=`Goose wardrobe ${world.runId.slice(0,8)}`;
   await page.locator(".composer-title input").fill(title);
   await page.getByRole("textbox",{name:/What can people help make/}).fill("Give this goose the worst interview outfit. Add a tiny briefcase or a wildly bad tie.");
+  if(process.env.MB_E2E_REVIEW==="1"){
+    await mkdir(".impeccable/review",{recursive:true});
+    await page.locator(".build-invitation-toggle").screenshot({path:`.impeccable/review/invitation-toggle-${info.project.name}.png`});
+  }
   const publish=async(visitor:typeof page)=>{
     await visitor.getByRole("button",{name:"Choose its place",exact:true}).click();
     const accepted=visitor.waitForResponse(r=>new URL(r.url()).pathname==="/api/memories"&&r.request().method()==="POST");
@@ -119,8 +124,13 @@ test("two visitors discover an authored build, paint and leave linked notes and 
   await page.getByRole("button",{name:"Join this build",exact:true}).click();
   await expect(page.locator(".world-story-overlay .build-workbench")).toHaveAttribute("data-build-id",invitation.id);
   const other=await world.visitor(browser,baseURL!,page,visitor=>visitor.on("pageerror",error=>errors.push(error.message)));
+  let capturedTogether=false;
   const join=async()=>{
     await other.getByRole("button",{name:"Build together",exact:true}).click();
+    if(process.env.MB_E2E_REVIEW==="1"&&!capturedTogether){
+      await mkdir(".impeccable/review",{recursive:true});capturedTogether=true;
+      await other.screenshot({path:`.impeccable/review/together-${info.project.name}.png`,fullPage:true});
+    }
     await other.locator(`.open-build-list [data-source-id="${invitation.id}"]`).click();
     await expect(other.locator(".world-story-overlay .build-workbench")).toHaveAttribute("data-build-id",invitation.id);
   };
@@ -167,6 +177,10 @@ test("two visitors discover an authored build, paint and leave linked notes and 
   await other.getByRole("button",{name:"Add a note",exact:true}).click();
   const responseText="A briefcase full of stale bread. This goose means business.";
   await other.locator(".composer-writing textarea").fill(responseText);
+  await expect.poll(async()=>other.locator(".world-story-overlay > .context-panel").evaluate(element=>{
+    const panel=element.getBoundingClientRect(),board=element.closest(".world-board")!.getBoundingClientRect();
+    return panel.bottom-board.bottom;
+  })).toBeLessThanOrEqual(-70);
   if(process.env.MB_E2E_REVIEW==="1")await other.screenshot({path:`.impeccable/review/build-response-${info.project.name}.png`,fullPage:true});
   await other.getByRole("button",{name:"Close panel",exact:true}).click();
   await join();await other.getByRole("button",{name:"Add a note",exact:true}).click();
@@ -183,15 +197,18 @@ test("two visitors discover an authored build, paint and leave linked notes and 
   if(info.project.name==="mobile"){
     await other.setViewportSize({width:320,height:640});
     expect(await other.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
-    const geometry=await other.locator(".build-workbench").evaluate(element=>{
+    const geometry=()=>other.locator(".build-workbench").evaluate(element=>{
       const button=element.querySelector("button")!.getBoundingClientRect();
       const panel=element.closest(".context-panel")!.getBoundingClientRect();
       const source=document.querySelector(".memory-card.is-selected")!.getBoundingClientRect();
       const dock=document.querySelector('.canvas-dock')!.getBoundingClientRect();
       return {target:button.height,sourceBottom:source.bottom,panelTop:panel.top,panelBottom:panel.bottom,dockTop:dock.top};
     });
-    expect(geometry.target).toBeGreaterThanOrEqual(44);expect(geometry.sourceBottom).toBeLessThanOrEqual(geometry.panelTop);
-    expect(geometry.panelBottom).toBeLessThanOrEqual(geometry.dockTop);
+    // ResizeObserver and the explicit source camera settle after setViewportSize.
+    await expect.poll(async()=>{const g=await geometry();return g.sourceBottom-g.panelTop;}).toBeLessThanOrEqual(0);
+    await expect.poll(async()=>{const g=await geometry();return g.panelBottom-g.dockTop;}).toBeLessThanOrEqual(0);
+    expect((await geometry()).target).toBeGreaterThanOrEqual(44);
+    if(process.env.MB_E2E_REVIEW==="1")await other.screenshot({path:".impeccable/review/open-build-mobile-320.png",fullPage:true});
   }
   await page.getByRole("button",{name:"Build together",exact:true}).click();
   await page.locator(`.open-build-list [data-source-id="${invitation.id}"]`).click();

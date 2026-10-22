@@ -1,6 +1,6 @@
 /* Extensions to the established compact pixel materials, not another shell. */
 .build-invitation-toggle { display: flex; align-items: center; gap: 9px; min-height: 44px; margin: 2px 0 8px; padding: 6px 2px; cursor: pointer; color: #554064; font-size: 12px; line-height: 1.35; }
-.build-invitation-toggle input { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: #76528e; }
+.build-invitation-toggle input { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; appearance: auto; -webkit-appearance: auto; accent-color: #76528e; }
 .build-invitation-toggle small { display: block; margin-top: 3px; font-size: 11px; color: #71567b; }
 .memory-build-badge { position: absolute; right: -3px; bottom: -6px; display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: #f0e4ff; color: #55396b; font: 13px/1.2 var(--font-pixelify), sans-serif; box-shadow: 0 2px 5px #42214b18; }
 .build-workbench h3 { margin: 0; font: 500 23px/1.1 var(--font-pixelify), sans-serif; overflow-wrap: anywhere; }
