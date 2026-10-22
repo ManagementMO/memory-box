@@ -257,7 +257,8 @@ test("Find and cited Ask preserve the original, query and camera on source retur
   const citation = page.getByRole("button", { name: `Open source ${sources.length}`, exact: true });
   await citation.scrollIntoViewIfNeeded();
   const askScroll = await scrollState(page);
-  expect(askScroll.panel).toBeGreaterThan(100);
+  // Restore a genuine scroll offset without depending on panel typography.
+  expect(askScroll.panel).toBeGreaterThan(0);
   await citation.click();
   await expect(page.locator(".original-body")).toHaveText(sources.at(-1)!.body);
   if (info.project.name === "mobile") await expect(panel(page).getByRole("heading", { name: "Original", exact: true })).toBeInViewport();
@@ -284,16 +285,19 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
   await panel(page).getByRole("button", { name: "Draw pixels", exact: true }).click();
   await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
+  await expect(page.locator(".canvas-paint-bar")).toHaveCount(0);
   const point = await worldPoint(page);
   await page.mouse.move(point.x, point.y);
   await page.mouse.down();
   await page.mouse.move(point.x + 18, point.y, { steps: 5 });
   await page.mouse.up();
   await expect(page.locator(".paint-preview-count").first()).toContainText(/[1-9]/);
+  await expect(page.locator(".canvas-paint-bar")).toBeVisible();
   await expect(page.locator(".contribution-mark")).toHaveCount(0);
   expect(writes).toBe(0);
   await page.getByRole("button", { name: "Clear preview", exact: true }).first().click();
   await expect(page.locator(".paint-preview-count").first()).toContainText(/^0\b/);
+  await expect(page.locator(".canvas-paint-bar")).toHaveCount(0);
   await page.getByRole("button", { name: "Close panel", exact: true }).click();
 
   const wheelPoint = await worldPoint(page, 0);

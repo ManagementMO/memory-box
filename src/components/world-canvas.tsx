@@ -341,7 +341,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     </div>
     <canvas ref={cursorCanvas} className="world-cursors" aria-hidden="true" data-peer-cursors={JSON.stringify(peers.slice(0, 100).map(({ sessionId, x, y, color, tool }) => ({ sessionId, x, y, color, tool })))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 11 }} />
     <span className="world-coordinate canvas-overlay" ref={coordinate} aria-label="Coordinates of the center of the view" />
-    <span className="canvas-guidance canvas-overlay">{gestureNotice || (zoom < 15 ? "The whole mosaic · zoom into a fragment" : brush?.enabled ? "Draw a preview · pinch to zoom · Shift + drag to pan" : pending ? "Tap to place · drag to explore" : "Drag to wander · pinch to zoom")}</span>
+    {gestureNotice ? <span className="canvas-guidance canvas-overlay" role="status">{gestureNotice}</span> : null}
     {children}
     <div className="canvas-levels canvas-overlay" role="group" aria-label="Canvas zoom levels">
       {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));}}>{option.label}</button>)}
