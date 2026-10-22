@@ -27,6 +27,8 @@ test("the world map travels between actual places and keeps a short phone usable
   const actual=await world.snapshot(page);
   expect(actual.memories.length).toBeGreaterThan(0);
   await expect(page.locator('.world-map-canvas')).toBeVisible();
+  await expect(page.locator('.world-map-viewport')).toBeVisible();
+  expect(await page.locator('.world-map-viewport').evaluate(element=>getComputedStyle(element).pointerEvents)).toBe('none');
   const places=page.locator('.world-place-list > button');expect(await places.count()).toBeGreaterThan(3);
   await expect.poll(()=>page.locator('.world-map-canvas').evaluate(element=>(element as HTMLCanvasElement).width)).toBeGreaterThan(100);
   await capture("map");
@@ -55,6 +57,9 @@ test("two visitors start a real remote place and paint, leave linked notes and p
   test.skip(!writesEnabled,"Real contributions require MB_E2E_WRITE=1.");test.setTimeout(120000);
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await world.connect(page);
+  // Merely opening Note must not trap the visitor in a blank ordinary draft.
+  await page.getByRole('button',{name:'Leave',exact:true}).click();
+  await page.getByRole('button',{name:'Close panel',exact:true}).click();
   await page.getByRole('button',{name:'Explore canvas',exact:true}).click();
   await page.getByRole('button',{name:'Start a place',exact:true}).click();
   await expect(page.getByRole('checkbox',{name:/Invite people to build here/})).toBeChecked();

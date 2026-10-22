@@ -82,6 +82,25 @@ describe("build tool source and destination",()=>{
     expect([400,4000].every(x=>Math.abs(destination.x-x)>250||Math.abs(destination.y-300)>250)).toBe(true);
   });
 
+  it("can start a place after opening and closing an untouched note",async()=>{
+    await click('[aria-label="Leave"]');
+    await click('[aria-label="Close panel"]');
+    await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(host.querySelector<HTMLInputElement>('.build-invitation-toggle input')?.checked).toBe(true);
+    expect(harness.canvas!.command.type).toBe("frame");
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("keeps a source-linked draft even before any words are typed",async()=>{
+    await join("a");await click('.build-tools .button:nth-child(2)');
+    await click('[aria-label="Close panel"]');await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
+    expect(host.querySelector<HTMLInputElement>('.build-invitation-toggle input')?.checked).toBe(false);
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
   it("resumes a parked contribution instead of replacing it with a new place",async()=>{
     await join("a");await click('.build-tools .button:nth-child(2)');
     // Use the real controlled textarea so the retained draft is app state.

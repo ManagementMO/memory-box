@@ -19,6 +19,7 @@
 .living-mosaic-app .panel-world .panel-content { padding:12px; }
 .living-mosaic-app .world-map-window { position:relative; border:1px solid #e5d9ec; border-radius:4px; overflow:hidden; background:#fffdf8; }
 .living-mosaic-app .world-map-canvas { display:block; width:100%; height:185px; image-rendering:pixelated; cursor:crosshair; }
+.living-mosaic-app .world-map-viewport { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .living-mosaic-app .world-map-key { position:absolute; left:7px; bottom:6px; display:flex; gap:5px; align-items:center; background:#fffdf8ed; padding:3px 4px; color:#695578; font:400 10px/1.2 var(--font-body); pointer-events:none; }
 .living-mosaic-app .world-map-key>i { width:12px; height:8px; border:1px dashed #78559d; }
 .living-mosaic-app .world-map-heading { display:flex; align-items:center; gap:7px; margin:17px 3px 5px; }

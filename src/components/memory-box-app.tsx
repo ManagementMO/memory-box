@@ -250,7 +250,9 @@ export function MemoryBoxApp() {
   const startPlace = () => {
     if(!world||busy)return;
     if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before starting a place.");return;}
-    if(draft){resumeDraft();setAnnouncement("Your draft is still here. Finish it before starting another place.");return;}
+    if(draft&&(draft.editId||draft.inspiredBy||draft.paintOperationId||draft.title.trim()||draft.body.trim()||draft.url.trim()||draft.file||draft.assetId||draft.previewUrl)){
+      resumeDraft();setAnnouncement("Your draft is still here. Finish it before starting another place.");return;
+    }
     const view=cameraView.current,anchor=view?screenToWorld(view,{x:view.width/2,y:view.height/2}):{x:0,y:0};
     const ground=newPlaceGround(areas,world.memories,world.pixels,anchor);
     if(!ground){setAnnouncement("No open ground was found nearby. You can still add to an existing place.");return;}
