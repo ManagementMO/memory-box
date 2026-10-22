@@ -3,6 +3,7 @@ import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LivePeer } from "../src/lib/client/presence-state";
+import type { Memory } from "../src/lib/types";
 import { WorldCanvas } from "../src/components/world-canvas";
 
 vi.mock("../src/components/tool-button", () => ({
@@ -108,5 +109,16 @@ describe("canvas redraw boundaries", () => {
     await render({ peers: [peer()] });
     expect(artwork.fillRect.mock.calls.length).toBeGreaterThanOrEqual(17002);
     expect(host.querySelector<HTMLCanvasElement>(".world-pixels")!.width).toBe(2400);
+  });
+
+  it("highlights real new versions briefly, while the initial snapshot stays still",async()=>{
+    const memory={id:"original-a",version:1,type:"text",body:"An actual original",title:"",authorName:"Visitor",color:"#FFED9C",x:100,y:100} as Memory;
+    await render({world:{...props.world,memories:[memory]}});
+    expect(host.querySelector('.is-arriving')).toBeNull();
+    await render({world:{...props.world,revision:2,memories:[{...memory,version:2}]}});
+    expect(host.querySelector('.memory-card.is-arriving')?.getAttribute('data-memory-id')).toBe(memory.id);
+    await render({world:{...props.world,memories:[{...memory,version:2}]}});
+    await act(async()=>vi.advanceTimersByTime(1800));
+    expect(host.querySelector('.is-arriving')).toBeNull();
   });
 });

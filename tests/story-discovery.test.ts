@@ -4,6 +4,11 @@ import type { Memory } from "../src/lib/types";
 
 const memory = (id: string) => ({ id } as Memory);
 describe("wandering through actual originals", () => {
+  it("visits an unseen community original before starters, then still offers unseen places",()=>{
+    const world=[{...memory("starter"),isSeed:true},{...memory("community"),isSeed:false}];
+    expect(chooseWanderMemory(world,[],null,0)?.id).toBe("community");
+    expect(chooseWanderMemory(world,["community"],null,0)?.id).toBe("starter");
+  });
   it("handles an empty world and a single original", () => {
     expect(chooseWanderMemory([], [], null, 0)).toBeUndefined();
     expect(chooseWanderMemory([memory("a")], ["a"], "a", .9)?.id).toBe("a");

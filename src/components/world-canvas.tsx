@@ -14,6 +14,7 @@ import { MemoryCard } from "./memory-card";
 import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 import type { ContributionMark } from "@/lib/client/contribution-feedback";
 import { ContributionMarkView } from "./contribution-mark";
+import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
 
 export interface CameraView extends Camera { width: number; height: number }
 export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore" | "place"; points?: FramePoint[]; camera?: CameraView; place?: SharedPlace }
@@ -21,10 +22,11 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, children }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
   brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
+  floating?: {anchor:FramePoint;mode:"peek"|"compose";content:React.ReactNode};
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
@@ -33,6 +35,10 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const pointers = useRef(new Map<number, Point>()), gesture = useRef<Gesture | null>(null), stroke = useRef<Pixel[]>([]);
   const suppressCardClickUntil = useRef(0);
   const hadPeerPaint = useRef(false);
+  const floatingElement=useRef<HTMLDivElement>(null);
+  const knownMemories=useRef<Map<string,number>|null>(null),arrivalTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const [arrived,setArrived]=useState<Set<string>>(()=>new Set());
+  const floatingState=useRef(floating);floatingState.current=floating;
   const latest = useRef({ world, pending, brush, onCameraChange, peers, onCursor });
   latest.current = { world, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
@@ -118,6 +124,16 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     hadPeerPaint.current = hasPaint;
   }, [draw, drawCursors]);
 
+  const positionFloating=useCallback(()=>{
+    const element=floatingElement.current,container=board.current,overlay=floatingState.current;
+    if(!element||!container||!overlay)return;
+    const c=camera.current,a=overlay.anchor;
+    const visible=c.x+(a.x+(a.width??205))*c.z>=0&&c.x+a.x*c.z<=container.clientWidth&&c.y+(a.y+(a.height??110))*c.z>=0&&c.y+a.y*c.z<=container.clientHeight;
+    element.hidden=overlay.mode==="peek"&&!visible;
+    const point=floatingStoryPosition(c,a,{width:container.clientWidth,height:container.clientHeight},{width:element.offsetWidth,height:element.offsetHeight},overlay.mode);
+    element.style.left=`${point.x}px`;element.style.top=`${point.y}px`;
+  },[]);
+
   const applyCamera = useCallback(() => {
     const element = board.current;
     if (!element) return;
@@ -138,8 +154,27 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (coordinate.current) coordinate.current.textContent = `x ${Math.round(center.x).toLocaleString()} · y ${Math.round(center.y).toLocaleString()}`;
     viewport.current = { width: element.clientWidth, height: element.clientHeight };
     latest.current.onCameraChange?.({ ...camera.current, ...viewport.current });
-    setZoom(z < .01 ? Math.round(z * 1000) / 10 : Math.round(z * 100)); draw();
-  }, [draw]);
+    setZoom(z < .01 ? Math.round(z * 1000) / 10 : Math.round(z * 100)); draw();positionFloating();
+  }, [draw,positionFloating]);
+
+  useEffect(()=>{
+    positionFloating();
+    const element=floatingElement.current;
+    if(!element)return;
+    const observer=new ResizeObserver(positionFloating);observer.observe(element);
+    return ()=>observer.disconnect();
+  },[!!floating,floating?.anchor.x,floating?.anchor.y,floating?.mode,positionFloating]);
+  useEffect(()=>{
+    const next=new Map(world.memories.map(m=>[m.id,m.version]));
+    const previous=knownMemories.current;knownMemories.current=next;
+    if(!previous)return;
+    const changed=world.memories.filter(m=>previous.get(m.id)!==m.version).slice(-12).map(m=>m.id);
+    if(!changed.length)return;
+    setArrived(new Set(changed));
+    if(arrivalTimer.current)clearTimeout(arrivalTimer.current);
+    arrivalTimer.current=setTimeout(()=>setArrived(new Set()),1800);
+  },[world.memories]);
+  useEffect(()=>()=>{if(arrivalTimer.current)clearTimeout(arrivalTimer.current);},[]);
 
   const stopCamera = useCallback(() => {
     if (cameraAnimation.current !== null) cancelAnimationFrame(cameraAnimation.current);
@@ -171,8 +206,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const size = { width: element.clientWidth, height: element.clientHeight };
     const campus=closerMobile?initialCampusCamera(latest.current.world.memories,size):null;
     if(campus){animateCamera(campus,animate);return;}
-    let target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: .85 });
-    if (closerMobile) target = zoomCameraAt(target, size.width < 700 ? 1.65 : Math.min(1.5, .85 / target.z), { x: size.width / 2, y: size.height / 2 });
+    const target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: closerMobile?.45:.85 });
     animateCamera(target, animate);
   }, [animateCamera]);
 
@@ -275,7 +309,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   };
 
   const memoryMap = new Map(world.memories.map(memory => [memory.id, memory]));
-  const relationships = world.memories.filter(memory => memory.inspiredBy && (memory.id === selectedId || memory.inspiredBy === selectedId || (foundIds.includes(memory.id) && foundIds.includes(memory.inspiredBy))));
+  const relationships = world.memories.filter(memory => memory.inspiredBy && memoryMap.has(memory.inspiredBy));
   const latestPaint = world.events.find(event => event.kind === "paint" && !event.isSeed);
 
   return <div className={`world-board${pending ? " is-placing" : ""}${brush?.enabled ? " is-brushing" : ""}`} ref={board} role="region" aria-label="The shared Memory Box world" data-world-revision={world.revision} data-tool={brush?.enabled ? "brush" : "hand"}
@@ -333,15 +367,16 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
         const original = memoryMap.get(memory.inspiredBy!);
         if (!original) return null;
         const a = memorySize(original), b = memorySize(memory), x1 = original.x + a.width / 2, y1 = original.y + a.height, x2 = memory.x + b.width / 2, y2 = memory.y + b.height;
-        return <path key={memory.id} d={`M${x1},${y1} C${x1},${Math.max(y1, y2) + 40} ${x2},${Math.max(y1, y2) + 40} ${x2},${y2}`} />;
+        return <path key={memory.id} className={memory.id===selectedId||memory.inspiredBy===selectedId?"is-emphasized":undefined} d={`M${x1},${y1} C${x1},${Math.max(y1, y2) + 40} ${x2},${Math.max(y1, y2) + 40} ${x2},${y2}`} />;
       })}</svg>
-      {world.memories.map(memory => <MemoryCard key={memory.id} memory={memory} selected={selectedId === memory.id} number={foundIds.includes(memory.id) ? foundIds.indexOf(memory.id) + 1 : undefined} dimmed={foundIds.length > 0 && !foundIds.includes(memory.id)} parentName={memory.inspiredBy ? memoryMap.get(memory.inspiredBy)?.authorName : undefined} onOpen={() => { if (!pending && !brush?.enabled) onOpen(memory.id); }} />)}
+      {world.memories.map(memory => <MemoryCard key={memory.id} memory={memory} arrived={arrived.has(memory.id)} selected={selectedId === memory.id} number={foundIds.includes(memory.id) ? foundIds.indexOf(memory.id) + 1 : undefined} dimmed={foundIds.length > 0 && !foundIds.includes(memory.id)} parentName={memory.inspiredBy ? memoryMap.get(memory.inspiredBy)?.authorName : undefined} onOpen={() => { if (!pending && !brush?.enabled) onOpen(memory.id); }} />)}
       {pending?.memory ? <MemoryCard memory={pending.memory} pending parentName={pending.memory.inspiredBy ? memoryMap.get(pending.memory.inspiredBy)?.authorName : undefined} /> : null}
       {contribution ? <ContributionMarkView key={contribution.id} mark={contribution} /> : null}
     </div>
     <canvas ref={cursorCanvas} className="world-cursors" aria-hidden="true" data-peer-cursors={JSON.stringify(peers.slice(0, 100).map(({ sessionId, x, y, color, tool }) => ({ sessionId, x, y, color, tool })))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 11 }} />
     <span className="world-coordinate canvas-overlay" ref={coordinate} aria-label="Coordinates of the center of the view" />
     {gestureNotice ? <span className="canvas-guidance canvas-overlay" role="status">{gestureNotice}</span> : null}
+    {floating?<div ref={floatingElement} className={`world-story-overlay canvas-overlay is-${floating.mode}`}>{floating.content}</div>:null}
     {children}
     <div className="canvas-levels canvas-overlay" role="group" aria-label="Canvas zoom levels">
       {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));}}>{option.label}</button>)}

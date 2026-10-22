@@ -18,12 +18,13 @@ describe("three distances in one shared place", () => {
     expect(scales[2]).toBeGreaterThan(scales[1]*1.5);
     expect(scales[1]).toBeGreaterThan(scales[0]*1.5);
   });
-  it("starts a narrow campus visit close enough to see the shared drawing without inventing an absent campus",()=>{
+  it("starts with the whole campus drawing and its neighboring stories without inventing an absent campus",()=>{
     const viewport={width:390,height:739};
     expect(initialCampusCamera([],viewport)).toBeNull();
     expect(initialCampusCamera([{id:WATERLOO_ARRIVAL.anchorMemoryId,isSeed:false}],viewport)).toBeNull();
     const camera=initialCampusCamera([{id:WATERLOO_ARRIVAL.anchorMemoryId,isSeed:true}],viewport)!;
-    expect(camera.z).toBeGreaterThan(.65);
+    expect(canvasLevel(camera.z)).toBe("whole");
+    expect(camera.z).toBeGreaterThan(.3);
     const gooseHead={x:4190*camera.z+camera.x,y:180*camera.z+camera.y};
     expect(gooseHead.x).toBeGreaterThan(35);expect(gooseHead.x).toBeLessThan(355);
     expect(gooseHead.y).toBeGreaterThan(100);expect(gooseHead.y).toBeLessThan(500);

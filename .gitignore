@@ -13,4 +13,5 @@ coverage/
 .DS_Store
 auth/
 .playwright-cli/
+.impeccable/review/
 .vercel

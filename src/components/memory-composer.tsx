@@ -5,6 +5,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import { PixelToolIcon } from "./pixel-tool-icon";
 import type { Memory, MemoryType, SceneId } from "@/lib/types";
 import { PAPER_COLORS } from "@/lib/scenes";
+import { originalLabel } from "@/lib/client/memory-presentation";
 
 export interface MemoryDraft {
   clientId: string; type: MemoryType; title: string; body: string; url: string; color: string;
@@ -39,7 +40,7 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
   };
   return <form className="composer" data-kind={draft.type} style={{ "--draft-paper": draft.color } as CSSProperties} onSubmit={(event) => { event.preventDefault(); onPreview(); }}>
     <div className="public-label"><Globe2 size={16} />Public on the canvas</div>
-    {parent ? <div className="lineage"><span>Building on @{parent.authorName}</span><button type="button" disabled={!!busy} onClick={() => onOriginal(parent.id)}>{parent.title || parent.body.slice(0, 55)}<ArrowRight size={14} /></button><small>Your contribution will link back here.</small></div> : null}
+    {parent ? <div className="lineage"><span>Building on @{parent.authorName}</span><button type="button" disabled={!!busy} onClick={() => onOriginal(parent.id)} aria-label={`Read original: ${originalLabel(parent)}`}><span>{originalLabel(parent)}</span><ArrowRight size={14} /></button><small>Your contribution will link back here.</small></div> : null}
     {!draft.editId ? <div className="type-switch" aria-label="Kind of memory">{([{ id: "text", label: "Text", icon: Type }, { id: "image", label: "Image", icon: ImageIcon }, { id: "link", label: "Link", icon: Link2 }] as const).map(({ id, label, icon: Icon }) => <button type="button" disabled={!!busy} key={id} aria-pressed={draft.type === id} onClick={() => change({ type: id })}><Icon size={18} />{label}</button>)}</div> : null}
     {draft.type === "link" ? <label className="field">Link<input disabled={!!busy} type="url" value={draft.url} onChange={(event) => change({ url: event.target.value })} placeholder="https://…" maxLength={2000} /></label> : null}
     <div className={`composer-artifact composer-${draft.type === "image" ? "photo" : draft.type === "text" ? "sheet" : "link-note"}`}>

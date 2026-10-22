@@ -120,6 +120,7 @@ async function publishDraft(page: Page): Promise<Memory> {
   const response = await accepted;
   expect(response.status()).toBe(201);
   const memory = await response.json() as Memory;
+  if(memory.inspiredBy)await page.getByRole("button",{name:"Read",exact:true}).click();
   await expect(page.locator(".original-title")).toHaveText(memory.title || memory.body.slice(0, 72));
   return memory;
 }

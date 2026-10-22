@@ -110,22 +110,22 @@
 .living-mosaic-app .context-panel .person-avatar { width: 30px; height: 30px; border-radius: 4px; font-size: 14px; }
 
 /* One button language for painting, composing, sharing and all panel actions. */
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button {
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button {
   --control-fill: linear-gradient(180deg, #fffdfd, #f1e9fa);
   --control-edge: #d6c4e2;
   position: relative; isolation: isolate; min-height: 40px; padding: 8px 10px; gap: 6px;
   border: 0; border-radius: 4px; color: var(--ui-ink); background: transparent; box-shadow: none;
   font: 500 15px/1.2 var(--font-display);
 }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button-primary { --control-fill: linear-gradient(180deg, #fff7de, #ffebba); --control-edge: #d9bd85; color: #61496b; }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button-danger { --control-fill: #fbe0e8; --control-edge: #cb9aab; color: #8b304c; }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button::before,
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button::after { content: ""; position: absolute; pointer-events: none; clip-path: var(--ui-cut); }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button::before { z-index: -2; inset: 3px 0; background: var(--control-edge); }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button::after { z-index: -1; inset: 4px 1px; background: var(--control-fill); box-shadow: inset 0 -1px #70508015; }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button:is(:hover, :active):not(:disabled) { background: transparent; box-shadow: none; transform: none; }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button:hover:not(:disabled)::after { filter: brightness(.98); }
-.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar) .button:active:not(:disabled)::after { box-shadow: inset 0 2px #70508020; }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button-primary { --control-fill: linear-gradient(180deg, #fff7de, #ffebba); --control-edge: #d9bd85; color: #61496b; }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button-danger { --control-fill: #fbe0e8; --control-edge: #cb9aab; color: #8b304c; }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button::before,
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button::after { content: ""; position: absolute; pointer-events: none; clip-path: var(--ui-cut); }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button::before { z-index: -2; inset: 3px 0; background: var(--control-edge); }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button::after { z-index: -1; inset: 4px 1px; background: var(--control-fill); box-shadow: inset 0 -1px #70508015; }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button:is(:hover, :active):not(:disabled) { background: transparent; box-shadow: none; transform: none; }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button:hover:not(:disabled)::after { filter: brightness(.98); }
+.living-mosaic-app :is(.context-panel, .placement-bar, .canvas-paint-bar, .story-peek) .button:active:not(:disabled)::after { box-shadow: inset 0 2px #70508020; }
 .living-mosaic-app .context-panel :is(.mode-switch, .type-switch, .paint-kit-modes) { border-radius: 4px; background: var(--ui-wash); padding: 3px; gap: 3px; }
 .living-mosaic-app .context-panel :is(.mode-switch, .type-switch, .paint-kit-modes) > button { min-height: 36px; padding: 6px; gap: 5px; border: 0; border-radius: 3px; color: #6a527b; background: transparent; font: 500 15px/1.1 var(--font-display); }
 .living-mosaic-app .context-panel :is(.mode-switch, .type-switch) > button[aria-pressed=true] { color: #574264; background: #fffdf9; box-shadow: inset 0 -2px #d2bedf; }

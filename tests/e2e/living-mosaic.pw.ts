@@ -102,11 +102,12 @@ test("wandering reaches stored originals and a paper supports drag, click and ke
   const firstId = await selected.getAttribute("data-memory-id");
   const first = originals.find(memory => memory.id === firstId);
   expect(first).toBeDefined();
-  await expect(page.locator(".original-title")).toHaveText(first!.title || first!.body.slice(0,72));
+  await expect(page.getByRole("region",{name:"Story preview",exact:true})).toHaveAttribute("data-story-id",firstId!);
+  await expect(page.locator(".panel-inspect")).toHaveCount(0);
   await wander.click();
   await expect(selected).not.toHaveAttribute("data-memory-id", firstId!);
   const id = await selected.getAttribute("data-memory-id");
-  await page.getByRole("button", { name: "Close panel", exact: true }).click();
+  await page.getByRole("button", { name: "Close story preview", exact: true }).click();
   const card = page.locator(`.memory-card[data-memory-id="${id}"]`);
   await expect(card).toBeInViewport();
   const point = await card.boundingBox();
@@ -122,9 +123,10 @@ test("wandering reaches stored originals and a paper supports drag, click and ke
   expect(Math.abs(after.x - before.x - 42)).toBeLessThan(2);
   expect(Math.abs(after.y - before.y - 21)).toBeLessThan(2);
   await card.click();
-  await expect(page.locator(".context-panel")).toHaveCount(1);
+  await expect(page.getByRole("region",{name:"Story preview",exact:true})).toBeVisible();
+  await expect(page.locator(".context-panel")).toHaveCount(0);
   await expect(selected).toHaveAttribute("data-memory-id", id!);
-  await page.getByRole("button", { name: "Close panel", exact: true }).click();
+  await page.getByRole("button", { name: "Close story preview", exact: true }).click();
   await card.focus();
   await page.keyboard.press("Enter");
   await expect(selected).toHaveAttribute("data-memory-id", id!);

@@ -27,6 +27,8 @@ import { WorldCanvas, type CameraCommand, type CameraView, type PendingPlacement
 import { parseSharedPlace, sharedPlaceFromCamera, sharedPlaceForOriginal, type SharedPlace } from "@/lib/client/shared-place";
 import { SharePlacePanel } from "./share-place-panel";
 import { PaintKit } from "./paint-kit";
+import { StoryPeek } from "./story-peek";
+import { neighborhoodCamera } from "@/lib/client/story-neighborhood";
 import { memoryContributionMark, paintContributionMark, type ContributionMark } from "@/lib/client/contribution-feedback";
 
 type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "people" | "share" | null;
@@ -64,6 +66,7 @@ export function MemoryBoxApp() {
   const [arrival, setArrival] = useState<SharedPlace | null>(null);
   const {seconds:paintWait,known:paintTurnKnown,accept:acceptPaintTurn,rejected:handlePaintRejection}=usePaintTurn(identity?.id,connection==="live",panel==="paint"||pending?.kind==="paint");
   const panelHeading = useRef<HTMLHeadingElement>(null), searchInput = useRef<HTMLTextAreaElement>(null), searchSequence = useRef(0);
+  const previewInvoker = useRef<HTMLElement | null>(null);
   const invitationElement = useRef<HTMLButtonElement>(null), livePainter = useRef(presence.peers.find(peer=>peer.tool==="paint"));
   livePainter.current=presence.peers.find(peer=>peer.tool==="paint");
   const keepInputFocus = useRef(false);
@@ -175,11 +178,23 @@ export function MemoryBoxApp() {
     setSelectedId(id); setPanel("inspect"); setPanelExpanded(false); setPending(null); setBackToSearch(fromSearch); setDeleteConfirm(false); setFormError(""); setJustPublished(null);
     if (memory) { setActiveScene(memory.sceneId); cameraTo([{ ...memory, ...memorySize(memory) }]); }
   };
+  const focusNeighborhood=(memory:Memory,mode:"peek"|"compose"="peek")=>{
+    const view=cameraView.current;if(!view)return;
+    const camera=neighborhoodCamera({...memory,...memorySize(memory)},(world?.memories??[]).map(m=>({...m,...memorySize(m)})),view,mode);
+    setCommand(old=>({key:old.key+1,type:"restore",camera:{...view,...camera}}));
+  };
+  const peekMemory=(id:string,navigate=false)=>{
+    const memory=world?.memories.find(m=>m.id===id);if(!memory)return;
+    if(!document.activeElement?.closest(".story-peek"))previewInvoker.current=document.querySelector<HTMLElement>(navigate?".wander-button":`.memory-card[data-memory-id="${CSS.escape(id)}"]`);
+    visited.current=[...visited.current.filter(item=>item!==id).slice(-39),id];
+    setArrival(null);setPanel(null);setPending(null);setSelectedId(id);setBackToSearch(false);setBackToDraft(false);setAnnouncement("");setFormError("");
+    setActiveScene(memory.sceneId);
+    if(navigate)focusNeighborhood(memory);
+  };
   const wander = () => {
     const memory = chooseWanderMemory(world?.memories ?? [], visited.current, selectedId);
     if (!memory) { setAnnouncement("There is room for the first story. Leave something here."); return; }
-    visited.current = [...visited.current.slice(-39), memory.id];
-    openMemory(memory.id);
+    peekMemory(memory.id,true);
   };
   const buildTogether = () => {
     setPending(null); setSelectedId(null); setBackToSearch(false); setFormError("");
@@ -205,7 +220,7 @@ export function MemoryBoxApp() {
     setArrival(null);
     setDraft({ ...newDraft(inspiredBy, paintOperationId), type }); setPending(null); setPanel("compose"); setBackToSearch(false); setBackToDraft(false); setFormError("");
     const original = world?.memories.find((memory) => memory.id === inspiredBy);
-    if (original) { setActiveScene(original.sceneId); setSelectedId(original.id); }
+    if (original) { setActiveScene(original.sceneId); setSelectedId(original.id); focusNeighborhood(original,"compose"); }
     else setSelectedId(null);
   };
   const showPaint = () => {
@@ -215,8 +230,22 @@ export function MemoryBoxApp() {
     const view = cameraView.current;
     if (paintMode === "draw" && view && view.z < 1.7) setCommand(old => ({ key: old.key + 1, type: "restore", camera: { ...view, ...zoomCameraAt(view, 1.7 / view.z, { x: view.width / 2, y: view.height / 2 }) } }));
   };
-  const resumeDraft = () => { setPanel("compose"); setPending(null); setBackToDraft(false); setBackToSearch(false); };
-  const closePanel = () => { setArrival(null); setBackToDraft(false); setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); };
+  const resumeDraft = () => {
+    setPanel("compose"); setPending(null); setBackToDraft(false); setBackToSearch(false);
+    const original=world?.memories.find(memory=>memory.id===draft?.inspiredBy);
+    setSelectedId(original?.id??null);
+    if(original){setActiveScene(original.sceneId);focusNeighborhood(original,"compose");}
+  };
+  const closePanel = useCallback(() => { setArrival(null); setBackToDraft(false); setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); },[]);
+  const closeStoryPreview=useCallback(()=>{
+    const invoker=previewInvoker.current;
+    closePanel();
+    requestAnimationFrame(()=>{
+      const box=invoker?.getBoundingClientRect();
+      const visible=invoker?.isConnected&&box&&box.width>0&&box.height>0&&box.right>0&&box.left<innerWidth&&box.bottom>0&&box.top<innerHeight&&!invoker.closest("[hidden],[inert]")&&!(invoker instanceof HTMLButtonElement&&invoker.disabled);
+      (visible?invoker:document.querySelector<HTMLElement>(".wander-button"))?.focus({preventScroll:true});
+    });
+  },[closePanel]);
   const cancelPlacement = useCallback(() => { if (busy) return; setPending((previous) => { setPanel(previous?.kind === "memory" ? "compose" : "paint"); return null; }); setFormError(""); setAnnouncement(""); }, [busy]);
 
   const previewMemory = () => {
@@ -279,7 +308,8 @@ export function MemoryBoxApp() {
         const saved = "memory" in result ? result.memory : result;
         const current = await refresh();
         const visible = current?.memories.some(memory => memory.id === saved.id);
-        setPending(null); setPanel(visible ? "inspect" : null); setSelectedId(visible ? saved.id : null); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false); setBackToDraft(false);
+        setPending(null); setPanel(visible && !saved.inspiredBy ? "inspect" : null); setSelectedId(visible ? saved.id : null); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false); setBackToDraft(false);
+        if(visible&&current&&saved.inspiredBy&&cameraView.current){const view=cameraView.current;const camera=neighborhoodCamera({...saved,...memorySize(saved)},current.memories.map(m=>({...m,...memorySize(m)})),view);setCommand(old=>({key:old.key+1,type:"restore",camera:{...view,...camera}}));}
         setContribution(memoryContributionMark(saved));
         setAnnouncement(!current ? "Saved. Reconnecting to show it." : draft.inspiredBy ? "Added, with a link to the original." : "Added to the canvas.");
       }
@@ -358,7 +388,7 @@ export function MemoryBoxApp() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (busy) return;
-      if (event.key === "Escape") { if (pending) cancelPlacement(); else { setPanel(null); setSelectedId(null); setBackToSearch(false); } return; }
+      if (event.key === "Escape") { if (pending) cancelPlacement(); else if(!panel&&selectedId)closeStoryPreview();else closePanel(); return; }
       if (event.target instanceof HTMLElement && (event.target.closest("input,textarea,select,[contenteditable=true]"))) return;
       if (event.key === "/") { event.preventDefault(); keepInputFocus.current=true;setPanel("search");requestAnimationFrame(()=>searchInput.current?.focus()); return; }
       if (!pending || busy) return;
@@ -367,7 +397,7 @@ export function MemoryBoxApp() {
       else if (event.key === "Enter" && !(event.target instanceof Element && event.target.closest("button"))) { event.preventDefault(); void publish(); }
     };
     window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler);
-  }, [pending, busy, publish, updatePosition, cancelPlacement]);
+  }, [pending, busy, publish, updatePosition, cancelPlacement,panel,selectedId,closeStoryPreview,closePanel]);
 
   const pendingVisual = useMemo<PendingPlacement | null>(() => {
     if (!pending) return null;
@@ -495,6 +525,18 @@ export function MemoryBoxApp() {
 
   const latestChange = world?.events.find(event=>!event.isSeed && Date.now()-new Date(event.createdAt).getTime()<5*60_000);
   const PanelIcon = panel === "share" ? MapPin : panel === "paint" ? Paintbrush : panel === "people" || panel === "together" ? UsersRound : panel === "search" ? searchMode === "ask" ? MessageCircle : Search : panel === "profile" ? UserRound : panel === "compose" ? draft?.type === "image" ? ImageIcon : StickyNote : panel === "report" ? Flag : StickyNote;
+  const inlineReply=panel==="compose"&&!!parent&&!draft?.editId;
+  const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}`} aria-label={panelTitle}>
+    <div className="panel-mobile-handle"/>
+    <div className="panel-header">
+      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="paint"||panel==="compose"||panel==="together"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span>{panelTitle}</h2>
+      {panel==="inspect"?<button type="button" className="icon-button panel-expand" aria-label={panelExpanded?"Collapse panel":"Expand panel"} onClick={()=>setPanelExpanded(!panelExpanded)}>{panelExpanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</button>:null}
+      <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18}/></button>
+    </div>
+    <div className="panel-content" ref={panelContent} inert={!!busy} aria-busy={!!busy}>{renderPanel()}</div>
+  </aside>:null;
+  const floating=inlineReply&&parent?{anchor:{...parent,...memorySize(parent)},mode:"compose" as const,content:contextPanel}
+    :!panel&&!pending&&selected?{anchor:{...selected,...memorySize(selected)},mode:"peek" as const,content:<StoryPeek memory={selected} onRead={()=>openMemory(selected.id)} onBuild={()=>startMemory(selected.id)} onNext={wander} onClose={closeStoryPreview}/>} :undefined;
   return <ToolHints><main className="memory-box-app living-mosaic-app">
     <h1 className="visually-hidden">Memory Box canvas</h1>
     <header className="app-header">
@@ -510,7 +552,7 @@ export function MemoryBoxApp() {
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
-      {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) openMemory(id, panel === "search" || backToSearch); }} onPosition={updatePosition}>
+      {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
         <div className="world-social-controls canvas-overlay" role="group" aria-label="People and sharing">
           {!panel && !pending ? <button type="button" className="meet-here-button" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
           <button type="button" className="world-presence" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>
@@ -527,15 +569,7 @@ export function MemoryBoxApp() {
         {pending ? <div className="placement-bar canvas-overlay"><div><strong>{pending.kind === "paint" && paintWait>0?`Next save in ${paintWait}s`:"Choose a position"}</strong><p>Tap to move · arrow keys to nudge</p></div><button type="button" className="button button-primary" onClick={() => void publish()} disabled={!!busy || !canWrite || (pending.kind==="paint"&&paintWait>0)}>{busy ? <><span className="spinner" />{busy}</> : pending.kind === "paint" ? <>Paint here<Check size={16} /></> : <>Leave it here<Check size={16} /></>}</button><button type="button" className="icon-button" aria-label="Cancel placement" onClick={cancelPlacement} disabled={!!busy}><X size={24} /></button>{formError ? <p className="placement-error" role="alert">{formError}</p> : null}</div> : null}
         {!pending ? <CanvasDock><ToolButton disabled={!!busy} label="Explore canvas" className="explore-button" onClick={showWholeWorld}><PixelToolIcon tool="explore" /><span>Explore</span></ToolButton><ToolButton disabled={!!busy} className="wander-button" label="Wander into a story" onClick={wander}><PixelToolIcon tool="wander" /><span>Wander</span></ToolButton><ToolButton disabled={!!busy} className="together-button" label="Build together" aria-pressed={panel==="together"} onClick={buildTogether}><PixelToolIcon tool="together" /><span>Together</span></ToolButton><ToolButton disabled={!!busy} className="paint-button" label="Paint" aria-pressed={panel === "paint"} onClick={showPaint}><PixelToolIcon tool="paint" /><span>Paint</span></ToolButton><ToolButton disabled={!!busy} className="note-button" label="Leave" aria-pressed={panel === "compose" && draft?.type !== "image"} onClick={() => draft ? resumeDraft() : startMemory()}><PixelToolIcon tool="note" /><span>Note</span></ToolButton><ToolButton disabled={!!busy} className="photo-button" label="Leave a photo" aria-pressed={panel === "compose" && draft?.type === "image"} onClick={() => startMemory(undefined, undefined, "image")}><PixelToolIcon tool="photo" /><span>Photo</span></ToolButton></CanvasDock> : null}
       </WorldCanvas></div> : <div className="world-loading"><img src="/favicon.svg" className="loading-mark" width="64" height="64" alt="" /><h2>{worldError ? "Couldn’t load the canvas" : "Loading canvas…"}</h2>{worldError ? <><p>{worldError}</p><button type="button" className="button button-primary" onClick={retry}>Try again<ArrowRight size={24} /></button></> : <span className="spinner" />}</div>}
-      {panel && world ? <aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded ? " panel-expanded" : ""}`} aria-label={panelTitle}>
-        <div className="panel-mobile-handle" />
-        <div className="panel-header">
-          <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel === "paint" || panel === "compose" || panel === "together" || panel === "people" ? <PixelToolIcon tool={panel === "paint" ? "paint" : panel === "compose" ? draft?.type === "image" ? "photo" : "note" : "together"} /> : <PanelIcon size={24} />}</span>{panelTitle}</h2>
-          {panel === "inspect" ? <button type="button" className="icon-button panel-expand" aria-label={panelExpanded ? "Collapse panel" : "Expand panel"} onClick={() => setPanelExpanded(!panelExpanded)}>{panelExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
-          <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18} /></button>
-        </div>
-        <div className="panel-content" ref={panelContent} inert={!!busy} aria-busy={!!busy}>{renderPanel()}</div>
-      </aside> : null}
+      {!inlineReply?contextPanel:null}
     </div>
     <div className={`app-announcement${arrival || panel === "share" ? " visually-hidden" : ""}`} role="status" aria-live="polite">{announcement}</div>
   </main></ToolHints>;
