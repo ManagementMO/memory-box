@@ -16,8 +16,8 @@ const plexMono = localFont({ src: "../../public/fonts/ibm-plex-mono-latin.woff2"
 const caveat = localFont({ src: "../../public/fonts/caveat-medium.ttf", variable: "--font-caveat", weight: "500", display: "swap", preload: false, adjustFontFallback: false, fallback: ["cursive"] });
 
 export const metadata: Metadata = {
-  title: "Memory Box — Waterloo commons",
-  description: "An unofficial Waterloo commons. Paint a campus goose, leave a memory or a ridiculous idea, and build on what other people leave.",
+  title: "Memory Box — a shared canvas",
+  description: "A shared canvas for pixels, notes, photos and memories. Anyone can join and build on what others leave. Waterloo is our first neighborhood.",
   icons: { icon: "/favicon.svg" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#FFFFFF", interactiveWidget: "resizes-content" };
