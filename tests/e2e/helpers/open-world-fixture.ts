@@ -51,7 +51,40 @@ export class WorldFixture {
       assets: [...this.assets], operations: [...this.operations], cleanupCounts: this.cleanupCounts, cleaned }, null, 2));
   }
 
+  /** Optional integration-test admission, not a public-signup test. Real Auth
+   * sessions avoid spending the anonymous-IP bucket on every scenario. */
+  private async provision(page: Page) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) throw new Error("Provisioned browser tests require the public Supabase configuration.");
+    const email = `memory-box-e2e-${randomUUID()}@example.invalid`;
+    const password = randomUUID() + randomUUID();
+    const created = await this.db.auth.admin.createUser({ email, password, email_confirm: true });
+    if (created.error || !created.data.user) throw new Error("Could not provision the disposable test identity.");
+    this.actors.add(created.data.user.id);
+    this.ledger(false); // Retain ownership even if login/navigation fails.
+    // A same-origin static document avoids starting anonymous admission first.
+    await page.goto("/favicon.svg");
+    const id = await page.evaluate(async ({ url, key, email, password }) => {
+      const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) throw new Error(`Disposable test login failed (${response.status}).`);
+      const session = await response.json();
+      if (!session.access_token || !session.refresh_token || !session.user?.id) throw new Error("Incomplete disposable test session.");
+      session.expires_at ??= Math.floor(Date.now() / 1000) + session.expires_in;
+      if (!Number.isFinite(session.expires_at) || session.expires_at <= Date.now() / 1000) throw new Error("Invalid disposable test session expiry.");
+      // Matches the installed Supabase client's default storage key. Tokens
+      // remain in this isolated browser; no service key enters the page.
+      localStorage.setItem(`sb-${new URL(url).hostname.split(".")[0]}-auth-token`, JSON.stringify(session));
+      return session.user.id as string;
+    }, { url, key, email, password });
+    expect(id).toBe(created.data.user.id);
+  }
+
   async connect(page: Page) {
+    if (process.env.MB_E2E_PROVISIONED === "1") await this.provision(page);
     page.on("response", response => {
       if (response.request().method() !== "POST" || !response.ok()) return;
       if (response.headers()["x-memory-box-e2e-synthetic"] === "1") return;
