@@ -10,7 +10,9 @@ import { useWorld } from "@/lib/client/use-world";
 import { usePresence } from "@/lib/client/use-presence";
 import { usePaintTurn } from "@/lib/client/use-paint-turn";
 import type { PaintTurnTiming } from "@/lib/client/paint-turn";
-import { chooseWanderMemory } from "@/lib/client/story-discovery";
+import { areaAtPoint, chooseWorldStory, newPlaceGround, worldAreas, type WorldArea } from "@/lib/client/world-atlas";
+import { WorldMap } from "./world-map";
+import { AreaMark } from "./world-geography";
 import { LIVING_LANDMARKS } from "@/lib/living-landmarks";
 import { WATERLOO_LANDMARKS } from "@/lib/waterloo-landmarks";
 import { campusArrival } from "@/lib/client/campus-arrival";
@@ -34,10 +36,10 @@ import { originalLabel } from "@/lib/client/memory-presentation";
 import { neighborhoodCamera } from "@/lib/client/story-neighborhood";
 import { memoryContributionMark, paintContributionMark, type ContributionMark } from "@/lib/client/contribution-feedback";
 
-type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | null;
+type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | "world" | null;
 type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
 type SavedPaint = {operationId:string;buildId:string|null};
-const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", build: "Build here", people: "Who’s here", share: "Meet here" };
+const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", build: "Build here", people: "Who’s here", share: "Meet here", world:"World map" };
 const relativeDate = (date: string) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date));
 function revealMobilePanel() {
   // The reader is now a bottom sheet over the world. Keep the shared place in view.
@@ -69,6 +71,8 @@ export function MemoryBoxApp() {
   const [sharePlace, setSharePlace] = useState<SharedPlace | null>(null);
   const [incomingPlace, setIncomingPlace] = useState<SharedPlace | null>(null);
   const [arrival, setArrival] = useState<SharedPlace | null>(null);
+  const [mapCamera,setMapCamera]=useState<CameraView|null>(null);
+  const mapCameraTick=useRef(0),currentAreaId=useRef<string|null>(null);
   const {seconds:paintWait,known:paintTurnKnown,accept:acceptPaintTurn,rejected:handlePaintRejection}=usePaintTurn(identity?.id,connection==="live",panel==="paint"||pending?.kind==="paint");
   const panelHeading = useRef<HTMLHeadingElement>(null), searchInput = useRef<HTMLTextAreaElement>(null), searchSequence = useRef(0);
   const previewInvoker = useRef<HTMLElement | null>(null);
@@ -121,6 +125,8 @@ export function MemoryBoxApp() {
   const joinedBuild = world?.memories.find(memory=>memory.id===joinedBuildId);
   const lastPaintSource=lastPaint?.buildId&&world?.memories.some(memory=>memory.id===lastPaint.buildId)?lastPaint.buildId:undefined;
   const invitations = useMemo(()=>openBuildInvitations(world?.memories??[]),[world]);
+  const areas=useMemo(()=>worldAreas(world?.memories??[],world?.pixels??[]),[world?.memories,world?.pixels]);
+  const areasRef=useRef(areas);areasRef.current=areas;
   const active = sceneById(activeScene);
   const campusAvailable=!!world&&!!campusArrival(world.memories);
   const landmarks=campusAvailable?[...WATERLOO_LANDMARKS,...LIVING_LANDMARKS]:LIVING_LANDMARKS;
@@ -151,6 +157,8 @@ export function MemoryBoxApp() {
   const cameraTo = useCallback((points: CameraCommand["points"], type: "focus" | "frame" = "focus") => setCommand((old) => ({ key: old.key + 1, type, points })), []);
   const rememberCamera = useCallback((view: CameraView) => {
     cameraView.current = view;
+    currentAreaId.current=areaAtPoint(areasRef.current,screenToWorld(view,{x:view.width/2,y:view.height/2}))?.id??null;
+    if(panelRef.current==="world"&&performance.now()-mapCameraTick.current>100){mapCameraTick.current=performance.now();setMapCamera(view);}
     const element=invitationElement.current;if(!element)return;
     const place=invitationLandmark.current,painter=livePainter.current;
     const x=(painter?.x??place.x+place.width/2)*view.z+view.x;
@@ -200,7 +208,7 @@ export function MemoryBoxApp() {
     if(navigate)focusNeighborhood(memory);
   };
   const wander = () => {
-    const memory = chooseWanderMemory(world?.memories ?? [], visited.current, selectedId);
+    const memory = chooseWorldStory(world?.memories ?? [],areas,visited.current,selectedId??currentAreaId.current);
     if (!memory) { setAnnouncement("There is room for the first story. Leave something here."); return; }
     peekMemory(memory.id,true);
   };
@@ -224,7 +232,31 @@ export function MemoryBoxApp() {
     setLandmarkIndex(index); const place=landmarks[index];setActiveScene(place.sceneId);setSelectedId(null);setPending(null);setPanel("together");
     cameraTo([{ x:place.x,y:place.y,width:place.width,height:place.height }], "frame");
   };
-  const showWholeWorld = () => { closePanel();setPending(null);setCommand(old=>({key:old.key+1,type:"fit"})); };
+  const showWholeWorld = () => {
+    if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
+    closePanel();setPending(null);setMapCamera(cameraView.current);setPanel("world");setCommand(old=>({key:old.key+1,type:"fit"}));
+  };
+  const visitArea = (area:WorldArea) => {
+    if(busy)return;
+    if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
+    closePanel();setPending(null);setActiveScene(sceneForPoint(area.x+area.width/2,area.y+area.height/2));cameraTo([area],"frame");
+    setAnnouncement("");requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
+  };
+  const visitMapPoint = (point:{x:number;y:number}) => {
+    const nearby=areaAtPoint(areas,point);if(nearby){visitArea(nearby);return;}
+    closePanel();setPending(null);setActiveScene(sceneForPoint(point.x,point.y));cameraTo([{x:point.x-400,y:point.y-300,width:800,height:600}],"frame");
+    requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
+  };
+  const startPlace = () => {
+    if(!world||busy)return;
+    if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before starting a place.");return;}
+    if(draft){resumeDraft();setAnnouncement("Your draft is still here. Finish it before starting another place.");return;}
+    const view=cameraView.current,anchor=view?screenToWorld(view,{x:view.width/2,y:view.height/2}):{x:0,y:0};
+    const ground=newPlaceGround(areas,world.memories,world.pixels,anchor);
+    if(!ground){setAnnouncement("No open ground was found nearby. You can still add to an existing place.");return;}
+    startBuildHere();setJoinedBuildId(null);setActiveScene(sceneForPoint(ground.x,ground.y));cameraTo([ground],"frame");
+    setAnnouncement("You’re on open ground. Name what you’re making and invite someone to help.");
+  };
   const openShare = (memory?: Memory) => {
     const view = cameraView.current;
     const place = memory ? sharedPlaceForOriginal(memory, memorySize(memory), view?.z ?? 1) : view ? sharedPlaceFromCamera(view) : null;
@@ -540,6 +572,7 @@ export function MemoryBoxApp() {
 
   function renderPanel() {
     if (!world) return null;
+    if(panel==="world")return <WorldMap world={world} areas={areas} camera={mapCamera} onVisit={visitArea} onPoint={visitMapPoint} onStart={startPlace} disabled={!!busy}/>;
     if (panel === "share" && sharePlace) return <SharePlacePanel world={world} place={sharePlace} onBack={sharePlace.memoryId && selected ? () => setPanel("inspect") : undefined} />;
     if (panel === "people") return <div className="people-panel">
       <div className="presence-self"><span className="person-avatar">{identity?.name.slice(0,1).toUpperCase() || "Y"}</span><div><strong>{identity?.name || "You"}</strong><small>{presence.connected ? "You’re here" : "Joining live presence…"}</small></div><button type="button" className="text-button" aria-label={`Your profile, ${identity?.name ?? "guest"}`} onClick={openProfile}>Your name<ArrowUpRight size={13}/></button></div>
@@ -574,7 +607,7 @@ export function MemoryBoxApp() {
   const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}`} aria-label={panelTitle}>
     <div className="panel-mobile-handle"/>
     <div className="panel-header">
-      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span>{panelTitle}</h2>
+      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="world"?<AreaMark emblem="map"/>:panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span>{panelTitle}</h2>
       {panel==="inspect"?<button type="button" className="icon-button panel-expand" aria-label={panelExpanded?"Collapse panel":"Expand panel"} onClick={()=>setPanelExpanded(!panelExpanded)}>{panelExpanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</button>:null}
       <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18}/></button>
     </div>
@@ -598,7 +631,7 @@ export function MemoryBoxApp() {
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
-      {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
+      {world ? <div className="world-column"><WorldCanvas world={world} areas={areas} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
         <div className="world-social-controls canvas-overlay" role="group" aria-label="People and sharing">
           {!panel && !pending ? <button type="button" className="meet-here-button" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
           <button type="button" className="world-presence" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>

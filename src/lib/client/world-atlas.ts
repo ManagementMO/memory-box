@@ -2,6 +2,7 @@ import type { Memory, Pixel } from "../types";
 import { memorySize } from "../scenes";
 import { GRID_SIZE, WORLD_MAX, WORLD_MIN } from "../world-bounds";
 import type { FramePoint, Point } from "./canvas-geometry";
+import { occupiedBounds } from "./canvas-geometry";
 import { originalLabel } from "./memory-presentation";
 import { intersects, spatialIndex, type WorldRect } from "./spatial-index";
 
@@ -57,21 +58,38 @@ export function areaAtPoint(areas:readonly WorldArea[],p:Point):WorldArea|null{
   return candidates.sort((a,b)=>Math.hypot(p.x-a.x-a.width/2,p.y-a.y-a.height/2)-Math.hypot(p.x-b.x-b.width/2,p.y-b.y-b.height/2))[0]??null;
 }
 
+/** Show complete nearby places. A legal mark at the world edge cannot turn
+ * the first view into 120,000 units of empty space. The atlas still includes it. */
+export function atlasArrivalBounds(areas:readonly WorldArea[]):FramePoint|null{
+  const hull=occupiedBounds([...areas],[]);if(!hull)return null;
+  if(hull.width!<=12000&&hull.height!<=9000)return hull;
+  const weight=(a:WorldArea)=>a.memoryIds.length*300+a.pixelCount;
+  const main=areas.reduce((best,a)=>weight(a)>weight(best)?a:best);
+  const center={x:main.x+main.width/2,y:main.y+main.height/2};
+  return occupiedBounds(areas.filter(a=>Math.abs(a.x+a.width/2-center.x)<6000&&Math.abs(a.y+a.height/2-center.y)<4500),[])??hull;
+}
+
 /** Bounded search over geographic cells; this is a camera suggestion, no write. */
 export function newPlaceGround(areas:readonly WorldArea[],memories:readonly Memory[],pixels:readonly Pixel[],anchor:Point):FramePoint|null{
   const occupied=[...areas.map(a=>({x:a.x-80,y:a.y-80,width:a.width+160,height:a.height+160})),...memories.map(m=>({...m,...memorySize(m)})),...pixels.map(p=>({x:p.x*GRID_SIZE,y:p.y*GRID_SIZE,width:GRID_SIZE,height:GRID_SIZE}))];
   const index=spatialIndex(occupied,item=>item,1800);
   const cx=Math.floor((Number.isFinite(anchor.x)?anchor.x:0)/PLACE_WIDTH),cy=Math.floor((Number.isFinite(anchor.y)?anchor.y:0)/PLACE_HEIGHT);
   for(let radius=0;radius<=80;radius++){
-    const candidates:WorldRect[]=[];
+    const candidates:{point:WorldRect;cell:WorldRect}[]=[];
     const visit=(dx:number,dy:number)=>{
       const x=(cx+dx)*PLACE_WIDTH+PLACE_WIDTH/2-300,y=(cy+dy)*PLACE_HEIGHT+PLACE_HEIGHT/2-240;
-      if(x>=WORLD_MIN&&y>=WORLD_MIN&&x+600<=WORLD_MAX+1&&y+480<=WORLD_MAX+1)candidates.push({x,y,width:600,height:480});
+      if(x<WORLD_MIN||y<WORLD_MIN||x+600>WORLD_MAX+1||y+480>WORLD_MAX+1)return;
+      const point={x,y,width:600,height:480};
+      // A new place must remain outside a named landmark's territory and its
+      // entire geographic cell must be empty, not merely the visible clearing.
+      const key=coordinateKey({x:x+300,y:y+240});
+      if([[0,0],[600,0],[0,480],[600,480],[300,240]].some(([dx,dy])=>region({x:x+dx,y:y+dy})!==key))return;
+      candidates.push({point,cell:{x:(cx+dx)*PLACE_WIDTH,y:(cy+dy)*PLACE_HEIGHT,width:PLACE_WIDTH,height:PLACE_HEIGHT}});
     };
     for(let offset=-radius;offset<=radius;offset++){visit(offset,-radius);if(radius)visit(offset,radius);}
     for(let offset=-radius+1;offset<radius;offset++){visit(-radius,offset);visit(radius,offset);}
-    candidates.sort((a,b)=>Math.hypot(a.x+300-anchor.x,a.y+240-anchor.y)-Math.hypot(b.x+300-anchor.x,b.y+240-anchor.y));
-    const empty=candidates.find(point=>!index.query(point).some(item=>intersects(item,point)));if(empty)return empty;
+    candidates.sort((a,b)=>Math.hypot(a.point.x+300-anchor.x,a.point.y+240-anchor.y)-Math.hypot(b.point.x+300-anchor.x,b.point.y+240-anchor.y));
+    const empty=candidates.find(({cell})=>!index.query(cell).some(item=>intersects(item,cell)));if(empty)return empty.point;
   }
   return null;
 }
@@ -80,7 +98,8 @@ export function newPlaceGround(areas:readonly WorldArea[],memories:readonly Memo
 export function chooseWorldStory(memories:readonly Memory[],areas:readonly WorldArea[],visited:readonly string[],current:string|null,random:()=>number=Math.random):Memory|null{
   if(!memories.length)return null;
   const seen=new Set(visited),unseen=memories.filter(m=>m.id!==current&&!seen.has(m.id));
-  const pool=unseen.length?unseen:memories.filter(m=>m.id!==current);
+  const availableMemories=unseen.length?unseen:memories.filter(m=>m.id!==current);
+  const contributed=availableMemories.filter(m=>!m.isSeed),pool=contributed.length?contributed:availableMemories;
   if(!pool.length)return memories[0];
   const ids=new Set(pool.map(m=>m.id)),currentArea=areas.find(a=>a.id===current||a.memoryIds.includes(current??""));
   const available=areas.map(area=>({area,ids:area.memoryIds.filter(id=>ids.has(id))})).filter(group=>group.ids.length);

@@ -8,14 +8,15 @@ import { memorySize } from "@/lib/scenes";
 import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
 import { arrivalBounds, frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
 import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
-import { campusArrival } from "@/lib/client/campus-arrival";
-import { CANVAS_LEVELS, canvasLevel, initialCampusCamera, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
+import { CANVAS_LEVELS, canvasLevel, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
 import { MemoryCard } from "./memory-card";
 import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 import type { ContributionMark } from "@/lib/client/contribution-feedback";
 import { ContributionMarkView } from "./contribution-mark";
 import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
 import { spatialIndex } from "@/lib/client/spatial-index";
+import { atlasArrivalBounds, worldAreas, type WorldArea } from "@/lib/client/world-atlas";
+import { WorldGeography, type GeographyHandle } from "./world-geography";
 
 export interface CameraView extends Camera { width: number; height: number }
 export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore" | "place"; points?: FramePoint[]; camera?: CameraView; place?: SharedPlace }
@@ -23,11 +24,12 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, onArea, onWorldMap, geographyQuiet=false }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
   brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
   floating?: {anchor:FramePoint;mode:"peek"|"compose";content:React.ReactNode};
+  areas?:WorldArea[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
@@ -39,10 +41,12 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const floatingElement=useRef<HTMLDivElement>(null);
   const knownMemories=useRef<Map<string,number>|null>(null),arrivalTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [arrived,setArrived]=useState<Set<string>>(()=>new Set());
+  const geography=useRef<GeographyHandle>(null);
+  const derivedAreas=useMemo(()=>areas??worldAreas(world.memories,world.pixels),[areas,world.memories,world.pixels]);
   const floatingState=useRef(floating);floatingState.current=floating;
   const pixelIndex=useMemo(()=>spatialIndex(world.pixels,pixel=>({x:pixel.x*GRID_SIZE,y:pixel.y*GRID_SIZE,width:GRID_SIZE,height:GRID_SIZE})),[world.pixels]);
-  const latest = useRef({ world, pixelIndex, pending, brush, onCameraChange, peers, onCursor });
-  latest.current = { world, pixelIndex, pending, brush, onCameraChange, peers, onCursor };
+  const latest = useRef({ world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor });
+  latest.current = { world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
 
   const drawCursors = useCallback(() => {
@@ -155,6 +159,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const center = screenToWorld(camera.current, { x: element.clientWidth / 2, y: element.clientHeight / 2 });
     if (coordinate.current) coordinate.current.textContent = `x ${Math.round(center.x).toLocaleString()} · y ${Math.round(center.y).toLocaleString()}`;
     viewport.current = { width: element.clientWidth, height: element.clientHeight };
+    geography.current?.update({...camera.current,...viewport.current});
     latest.current.onCameraChange?.({ ...camera.current, ...viewport.current });
     setZoom(z < .01 ? Math.round(z * 1000) / 10 : Math.round(z * 100)); draw();positionFloating();
   }, [draw,positionFloating]);
@@ -204,11 +209,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const entryView = useCallback((animate = true, closerMobile = false) => {
     const element = board.current;
     if (!element) return;
-    const occupied = (closerMobile?campusArrival(latest.current.world.memories):null) ?? (closerMobile ? arrivalBounds : occupiedBounds)(latest.current.world.memories.map(memory => ({ ...memory, ...memorySize(memory) })), latest.current.world.pixels, GRID_SIZE);
+    const occupied = closerMobile?atlasArrivalBounds(latest.current.areas):occupiedBounds(latest.current.areas,[]);
     const size = { width: element.clientWidth, height: element.clientHeight };
-    const campus=closerMobile?initialCampusCamera(latest.current.world.memories,size):null;
-    if(campus){animateCamera(campus,animate);return;}
-    const target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: closerMobile?.45:.85 });
+    const target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 35 : 64, maxZoom: closerMobile?.4:.85 });
     animateCamera(target, animate);
   }, [animateCamera]);
 
@@ -363,6 +366,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       }
       publishPointer(point);
     }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
+    <WorldGeography ref={geography} areas={derivedAreas} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} onVisit={onArea} onWorldMap={onWorldMap}/>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />
     <div className="world-transformed" ref={transformed}>
       <svg className="memory-threads" width="1200" height="720" aria-hidden="true">{relationships.map(memory => {

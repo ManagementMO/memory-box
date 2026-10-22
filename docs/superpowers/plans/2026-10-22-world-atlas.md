@@ -32,10 +32,10 @@
 
 **Interfaces:** `worldAreas(memories,pixels):WorldArea[]`; `areaAtPoint(areas,point):WorldArea|null`; `newPlaceGround(areas,memories,pixels,anchor):FramePoint|null`; `chooseWorldStory(memories,areas,visited,current,random):Memory|null`; `spatialIndex(items,bounds,bucketSize).query(bounds)`.
 
-- [ ] Write RED tests for real-only/unique area assignment, distant and negative cells, named roots, deletion with surviving pixels, safe open-ground search and balanced unseen discovery.
-- [ ] Implement pure geographic functions and bounded queries, preserving original object coordinates; show GREEN.
-- [ ] Use cached pixel buckets in the artwork draw path; assert distant cells are excluded and all cursor/preview redraw regressions stay green.
-- [ ] Commit the independently tested model/index slice.
+- [x] Write RED tests for real-only/unique area assignment, distant and negative cells, named roots, deletion with surviving pixels, safe open-ground search and balanced unseen discovery.
+- [x] Implement pure geographic functions and bounded queries, preserving original object coordinates; show GREEN.
+- [x] Use cached pixel buckets in the artwork draw path; assert distant cells are excluded and all cursor/preview redraw regressions stay green.
+- [x] Commit the independently tested model/index slice.
 
 ### Task 2: World map, geographic landscape and travel
 
@@ -43,11 +43,11 @@
 
 **Interfaces:** `WorldArea` carries real bounds, source IDs, colors/emblem and exact content counts. Map receives current snapshot, areas/camera and onVisit/onPoint/onStart callbacks. World geography receives the same areas and camera and adds no writes.
 
-- [ ] Write failing app-handler tests for map travel, new-place draft safety and persisted-coordinate placement; add the real two-visitor world scenario before implementation.
-- [ ] Extend Explore/location affordances with compact map and real content miniature, place list and safe Start a place; keep the existing contribution pipelines and drafts.
-- [ ] Add faint geographic contours and readable decluttered area labels over the actual shared world; preserve the zoom center and reading/painting hit targets.
-- [ ] Distribute Wander across actual occupied places, maintaining actual-source previews and unseen history.
-- [ ] Verify desktop/mobile/320px geometry and functional navigation, two-visitor creation/paint/text/photo and reload; commit.
+- [x] Write failing app-handler tests for map travel, new-place draft safety and persisted-coordinate placement; add the real two-visitor world scenario before implementation.
+- [x] Extend Explore/location affordances with compact map and real content miniature, place list and safe Start a place; keep the existing contribution pipelines and drafts.
+- [x] Add faint geographic contours and readable decluttered area labels over the actual shared world; preserve the zoom center and reading/painting hit targets.
+- [x] Distribute Wander across actual occupied places, maintaining actual-source previews and unseen history.
+- [x] Verify desktop/mobile/320px geometry and functional navigation, two-visitor creation/paint/text/photo and reload; commit.
 
 ### Task 3: Verify and release
 
@@ -60,3 +60,9 @@
 ## Execution record
 
 User approval: latest explicit request approves the previously described world/neighborhood/close experience and authorizes push/merge. Native implementation reuses this dedicated checkout on a feature branch. Existing `.21st` context is the visual authority; PRODUCT.md records already-confirmed user facts. Morph exploration returned402, so source exploration used targeted local reads; Fast Apply fallback is available if its editor also fails.
+
+Task1: geographic/index tests pass, and a camera-motion regression first measured20,002 reads of distant pixel coordinates before the bucket index made it pass below100. The initial indexed slice is committed as222a5e7. The fresh builder check returned nothing important left.
+
+Task2: app-handler tests and a real browser assertion first failed on the missing map/start-place flow. The clearing search initially found ground still classed as Waterloo; the regression now proves an entirely empty geographic cell and a distinct new place. Community-first wandering is preserved before balancing discovery across places. Two development-server phone runs failed because Next's developer overlay intercepted Explore, so all release verification uses a production build.
+
+Final author visual pass: eight views were captured and opened together. One correction batch made labels quieter, separated World from sharing on phones, framed complete nearby places, and returned keyboard focus to World after travel. The phone overlap and inactive keyboard destination were independently reproduced as failing browser assertions before the fix. The second complete desktop/mobile capture pass passes all four new browser scenarios(33.9s), including320px geometry. Every capture was opened and validated; author polishing is finished. The detector ran once and returned[]. Final unit suite:318 tests in37 files; typecheck/build pass. The broad34-scenario regression and fresh code/visual review are next.

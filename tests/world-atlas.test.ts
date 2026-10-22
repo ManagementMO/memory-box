@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Memory, Pixel } from "../src/lib/types";
-import { areaAtPoint, chooseWorldStory, newPlaceGround, worldAreas } from "../src/lib/client/world-atlas";
+import { areaAtPoint, atlasArrivalBounds, chooseWorldStory, newPlaceGround, worldAreas } from "../src/lib/client/world-atlas";
 import { WORLD_MAX, WORLD_MIN } from "../src/lib/world-bounds";
 
 const original = (id:string,x:number,y:number,changes:Partial<Memory>={}):Memory => ({
@@ -50,6 +50,13 @@ describe("a world of real places",()=>{
     const occupied={id:"all",title:"Occupied",x:WORLD_MIN,y:WORLD_MIN,width:120000,height:120000,memoryIds:[],pixelCount:1,openBuilds:0,color:"#E4D8FB",emblem:"flag" as const};
     expect(newPlaceGround([occupied],[],[],{x:0,y:0})).toBeNull();
   });
+  it("starts a distinct place, rather than renaming an occupied geographic cell",()=>{
+    const memories=[original("existing",4300,220)];const areas=worldAreas(memories,[]);
+    const ground=newPlaceGround(areas,memories,[],{x:4300,y:240})!;
+    const created=original("new",ground.x+200,ground.y+180,{title:"New place",isBuildInvitation:true});
+    const after=worldAreas([...memories,created],[]),place=after.find(a=>a.memoryIds.includes(created.id))!;
+    expect(place.id).toMatch(/^place:/);expect(place.title).toBe("New place");expect(place.memoryIds).toEqual([created.id]);
+  });
   it("gives another place a turn before repeating stories in a dense neighborhood",()=>{
     const memories=[...Array.from({length:100},(_,i)=>original(`dense-${i}`,400+i,300)),original("remote",28000,24000)];
     const areas=worldAreas(memories,[]);
@@ -58,5 +65,19 @@ describe("a world of real places",()=>{
     const unseen=chooseWorldStory(memories,areas,["remote","dense-0"],"remote",()=>0);
     expect(unseen?.id).not.toBe("remote");expect(unseen?.id).not.toBe("dense-0");
     expect(chooseWorldStory([],[],[],null)).toBeNull();
+  });
+  it("preserves community-first discovery before falling back to fictional starters",()=>{
+    const seed=original("starter",-500,300,{isSeed:true});const community=original("visitor",28000,24000);
+    const memories=[seed,community],areas=worldAreas(memories,[]);
+    expect(chooseWorldStory(memories,areas,[],null,()=>0)?.id).toBe(community.id);
+    expect(chooseWorldStory(memories,areas,[community.id],community.id,()=>0)?.id).toBe(seed.id);
+  });
+  it("arrives with whole nearby places in view, without letting an extreme outlier empty the welcome",()=>{
+    const core=[original("a",-650,-600),original("b",560,320),original("c",5200,800)];
+    const areas=worldAreas(core,[]),bounds=atlasArrivalBounds(areas)!;
+    expect(areas.every(a=>a.x>=bounds.x&&a.y>=bounds.y&&a.x+a.width<=bounds.x+bounds.width!&&a.y+a.height<=bounds.y+bounds.height!)).toBe(true);
+    const extended=atlasArrivalBounds(worldAreas([...core,original("outlier",59900,59900)],[]))!;
+    expect(extended.width).toBeLessThan(16000);expect(extended.height).toBeLessThan(12000);
+    expect(atlasArrivalBounds([])).toBeNull();
   });
 });
