@@ -5,6 +5,8 @@ import "./living-mosaic.css";
 import "./poppy-canvas.css";
 import "./toybox.css";
 import "./meet-here.css";
+import "./playground.css";
+import "./composer-kit.css";
 
 const schibsted = localFont({ src: "../../public/fonts/schibsted-grotesk-latin.woff2", variable: "--font-schibsted", weight: "400 700", display: "swap", fallback: ["Arial", "sans-serif"] });
 const pixelify = localFont({ src: "../../public/fonts/pixelify-sans-latin.woff2", variable: "--font-pixelify", weight: "400 700", display: "swap", adjustFontFallback: false, fallback: ["sans-serif"] });

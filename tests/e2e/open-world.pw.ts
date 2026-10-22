@@ -273,7 +273,11 @@ test("Find and cited Ask preserve the original, query and camera on source retur
 test("brush and mobile pinch remain previews, and a cancelled placement retains the draft", async ({ page, world, context }, info) => {
   await world.connect(page);
   let writes = 0;
-  await page.route(/\/api\/(paint|memories|uploads)(\/|$)/, route => { writes++; return route.abort(); });
+  await page.route(/\/api\/(paint|memories|uploads)(\/|$)/, route => {
+    // Turn availability is a GET. Count only mutation attempts as writes.
+    if (route.request().method() === "GET") return route.continue();
+    writes++; return route.abort();
+  });
   await page.getByRole("button", { name: "Paint", exact: true }).click();
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(viewport(page)).toHaveAttribute("data-tool", "brush");
@@ -285,6 +289,7 @@ test("brush and mobile pinch remain previews, and a cancelled placement retains 
   await page.mouse.move(point.x + 18, point.y, { steps: 5 });
   await page.mouse.up();
   await expect(page.locator(".paint-preview-count").first()).toContainText(/[1-9]/);
+  await expect(page.locator(".contribution-mark")).toHaveCount(0);
   expect(writes).toBe(0);
   await page.getByRole("button", { name: "Clear preview", exact: true }).first().click();
   await expect(page.locator(".paint-preview-count").first()).toContainText(/^0\b/);
@@ -389,6 +394,8 @@ test("two real visitors publish independent notes and photos without gaining the
   await page.locator(".composer input:not([type=file])").first().fill(title);
   await page.locator(".composer textarea").fill("A family radio notebook from a disposable browser test.");
   const parent = await publishDraft(page);
+  await expect(page.locator(".contribution-mark-label")).toHaveText("Note added");
+  await expect(page.locator(".contribution-mark")).toHaveAttribute("aria-hidden", "true");
   await expect(visitor.locator(".world-transformed").getByRole("button", { name: quoteRegex(title) })).toBeAttached({ timeout: 8_000 });
   await readMemory(visitor, parent);
   await expect(visitor.getByRole("button", { name: "Edit memory", exact: true })).toHaveCount(0);
@@ -403,6 +410,7 @@ test("two real visitors publish independent notes and photos without gaining the
   await visitor.locator(".composer input:not([type=file])").first().fill(`Browser response ${run}`);
   await visitor.locator(".composer textarea").fill("My independently authored photo response to this original.");
   const child = await publishDraft(visitor);
+  await expect(visitor.locator(".contribution-mark-label")).toHaveText("Photo added");
   expect(child.authorId).not.toBe(parent.authorId);
   expect(child.inspiredBy).toBe(parent.id);
   expect(child.imageUrl).toMatch(/^\/api\/assets\//);
@@ -442,6 +450,10 @@ test("a real accepted brush stroke reaches another visitor and undo preserves th
   const operation = await response.json() as { operationId: string; revision: number };
   const cells = response.request().postDataJSON().cells as Array<{ x: number; y: number; color: string }>;
   expect(cells.length).toBeGreaterThan(1);
+  await expect(page.locator(".contribution-mark-label")).toHaveText(`${cells.length} pixels added`);
+  const mark = await page.locator(".contribution-mark").evaluate(element => ({ x: parseFloat((element as HTMLElement).style.left), y: parseFloat((element as HTMLElement).style.top) }));
+  expect(mark.x).toBe((Math.min(...cells.map(cell => cell.x)) + Math.max(...cells.map(cell => cell.x)) + 1) * gridSize / 2);
+  expect(mark.y).toBe((Math.min(...cells.map(cell => cell.y)) + Math.max(...cells.map(cell => cell.y)) + 1) * gridSize / 2);
   await expect.poll(() => notices.some(revision => revision >= operation.revision), { timeout: 8_000 }).toBe(true);
   await expect.poll(async () => Number(await viewport(visitor).getAttribute("data-world-revision")), { timeout: 8_000 }).toBeGreaterThanOrEqual(operation.revision);
   await expectRenderedPixel(visitor, cells[0], gridSize);
@@ -455,6 +467,7 @@ test("a real accepted brush stroke reaches another visitor and undo preserves th
   const snapshot = await world.snapshot(page);
   expect(snapshot.pixels.find(pixel => pixel.x === cells[0].x && pixel.y === cells[0].y)?.color).toBe(otherColor);
   await expectRenderedPixel(visitor, { ...cells[0], color: otherColor }, gridSize);
+  await expect(page.locator(".contribution-mark")).toHaveCount(0);
 });
 
 test("a provider-backed answer opens its actual cited original and returns without another model call", async ({ page, world }) => {

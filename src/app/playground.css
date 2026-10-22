@@ -1,0 +1,83 @@
+/* A small material kit. The canvas remains the main event. */
+.living-mosaic-app .paint-kit-modes { position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 5px; border-radius: 15px; background: #f3edf7; }
+.living-mosaic-app .paint-kit-active { position: absolute; z-index: -1; top: 5px; bottom: 5px; left: 5px; width: calc(50% - 7px); background: #fff; border-radius: 11px; box-shadow: 0 2px 4px #49364f16; transition: transform 180ms var(--toy-ease); }
+.living-mosaic-app .paint-kit-modes[data-mode=shape] .paint-kit-active { transform: translateX(calc(100% + 4px)); }
+.living-mosaic-app .paint-kit-modes button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 7px; border: 0; border-radius: 11px; color: #715d7d; background: transparent; font-size: 13px; font-weight: 600; }
+.living-mosaic-app .paint-kit-modes button[aria-pressed=true] { color: #42304f; }
+.living-mosaic-app .paint-kit-modes .tool-art, .living-mosaic-app .paint-kit-modes .pixel-shape { width: 27px; height: 27px; }
+.living-mosaic-app .stamp-selection { display: flex; align-items: center; gap: 14px; margin: 18px 0 12px; }
+.living-mosaic-app .stamp-selection-art { display: grid; place-items: center; width: 57px; height: 57px; flex-shrink: 0; border-radius: 13px; background: #fff3dd; box-shadow: inset 0 1px #fff, 0 3px 5px #754d4612; }
+.living-mosaic-app .stamp-selection-art > .pixel-shape { width: 42px; height: 42px; animation: stamp-settle 220ms var(--toy-spring); }
+.living-mosaic-app .stamp-selection strong { display: block; color: #4b3556; font: 500 18px/1.2 var(--font-display); }
+.living-mosaic-app .stamp-selection div > span { display: block; margin-top: 6px; color: #75617c; font-size: 10px; }
+.living-mosaic-app .stamp-shelf { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.living-mosaic-app .stamp-shelf > button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; min-height: 77px; padding: 10px 3px 8px; border: 1px solid #e9deec; border-radius: 12px; background: #fffcff; color: #66516e; font-size: 10px; transition: background 120ms ease-out, border-color 120ms ease-out; }
+.living-mosaic-app .stamp-shelf > button[aria-pressed=true] { background: #f0e6fb; border-color: #a387bf; color: #493258; box-shadow: inset 0 1px #fff, 0 3px 5px #71507e15; }
+.living-mosaic-app .stamp-art { display: grid; place-items: center; width: 37px; height: 37px; transition: transform 180ms var(--toy-spring); }
+.living-mosaic-app .stamp-art > .pixel-shape { width: 36px; height: 36px; }
+.living-mosaic-app .stamp-art[data-shape=pixel] > .pixel-shape { width: 13px; height: 13px; }
+.living-mosaic-app .stamp-art[data-shape=carriage] > .pixel-shape { width: 44px; height: 22px; }
+.living-mosaic-app .stamp-selection:has(+ .stamp-shelf [aria-label=Pixel][aria-pressed=true]) .pixel-shape { width: 17px; height: 17px; }
+.living-mosaic-app .stamp-selection:has(+ .stamp-shelf [aria-label="One more carriage"][aria-pressed=true]) .pixel-shape { width: 48px; height: 24px; }
+.living-mosaic-app .stamp-check { position: absolute; right: 4px; top: 4px; color: #644880; }
+.living-mosaic-app .paint-kit-colors { margin: 20px 0 18px; }
+.living-mosaic-app .paint-kit-color-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: #725d7d; font-size: 11px; }
+.living-mosaic-app .paint-kit-color-heading strong { display: inline-flex; align-items: center; gap: 7px; color: #4b3556; font-size: 11px; font-weight: 500; }
+.living-mosaic-app .paint-kit-color-heading i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; box-shadow: inset 0 0 0 1px #42304f22; }
+.living-mosaic-app .paint-kit-swatches { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 5px; }
+.living-mosaic-app .paint-chip { position: relative; min-width: 44px; height: 44px; padding: 5px; border: 0; border-radius: 11px; background: transparent; }
+.living-mosaic-app .paint-chip > span { display: block; width: 100%; height: 100%; background: var(--pigment); border: 1px solid #48314f20; border-radius: 7px; box-shadow: inset 0 2px 1px #ffffff44, 0 2px 3px #49364f16; transition: transform 150ms var(--toy-ease); }
+.living-mosaic-app .paint-chip[aria-pressed=true] { background: #eee4f6; box-shadow: inset 0 0 0 1px #a184bb; }
+.living-mosaic-app .paint-chip[aria-pressed=true] > span { transform: translateY(-1px); }
+.living-mosaic-app .paint-chip > .pixel-icon { position: absolute; top: 14px; left: calc(50% - 8px); color: #4b3556; background: #fffdf8; border-radius: 3px; padding: 1px; }
+.living-mosaic-app .paint-custom-color { display: grid; place-items: center; position: relative; height: 44px; border: 1px dashed #c4add6; border-radius: 11px; background: #faf5fd; color: #725389; }
+.living-mosaic-app .paint-custom-color input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; min-height: 44px; cursor: pointer; }
+.living-mosaic-app .paint-custom-color:focus-within { outline: 3px solid #8d6db9; outline-offset: 3px; }
+.living-mosaic-app .paint-kit-place { position: sticky; z-index: 2; bottom: -21px; margin: 0 -5px; padding: 12px 5px 18px; background: #fff; }
+.living-mosaic-app .paint-panel .paint-turn-status { margin: 0 0 15px; padding: 10px 11px 13px; }
+.living-mosaic-app .paint-panel .brush-summary .panel-copy { margin: 6px 0 14px; font-size: 12px; line-height: 1.6; }
+.living-mosaic-app .paint-panel .paint-actions { margin-bottom: 14px; }
+.living-mosaic-app .paint-panel .paint-actions .button { min-height: 44px; }
+.living-mosaic-app .paint-panel .paint-state { margin-top: 22px; }
+
+/* This exists only for the latest acknowledged save, at its real world point. */
+.living-mosaic-app .contribution-mark { position: absolute; z-index: 16; width: 0; height: 0; pointer-events: none; }
+.living-mosaic-app .contribution-mark-content { position: relative; width: 0; height: 0; transform: scale(calc(1 / var(--camera-zoom, 1))); }
+.living-mosaic-app .contribution-mark-ray { position: absolute; width: 5px; height: 5px; top: -2px; left: -2px; background: #ed849e; animation: contribution-pixels 550ms var(--toy-ease) both; }
+.living-mosaic-app .contribution-mark-ray:nth-child(3n) { background: #a887db; }
+.living-mosaic-app .contribution-mark-ray:nth-child(3n + 1) { background: #e5b842; }
+.living-mosaic-app .contribution-mark-label { position: absolute; display: inline-flex; align-items: center; gap: 6px; top: -51px; left: 0; padding: 8px 11px; color: #54366c; background: #fffdf6; border-radius: 9px; box-shadow: 0 3px 5px #49364f12, 0 8px 20px #49364f20; white-space: nowrap; font: 500 12px/1.3 var(--font-body); animation: contribution-label 2100ms var(--toy-ease) both; }
+@keyframes stamp-settle { from { transform: scale(.94) translateY(2px); } to { transform: scale(1) translateY(0); } }
+@keyframes contribution-pixels { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--ray-x), var(--ray-y)) scale(.5); opacity: 0; } }
+@keyframes contribution-label { 0% { opacity: 0; transform: translate(-50%, 5px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -3px); } }
+@media (hover: hover) and (pointer: fine) {
+  .living-mosaic-app .stamp-shelf > button:hover { background: #f5edfa; }
+  .living-mosaic-app .stamp-shelf > button:hover .stamp-art { transform: translateY(-2px) rotate(-3deg); transition-delay: 150ms; }
+  .living-mosaic-app .stamp-shelf > button:active .stamp-art { transform: translateY(1px) scale(.96); transition-delay: 0ms; }
+  .living-mosaic-app .paint-chip:hover > span { transform: translateY(-2px); }
+}
+@media (max-width: 700px) {
+  .living-mosaic-app .panel-paint { max-height: min(48dvh, 410px); }
+  .living-mosaic-app .panel-paint:has(.paint-kit-modes[data-mode=draw]) { max-height: min(34dvh, 280px); }
+  .living-mosaic-app .panel-paint .panel-header { min-height: 51px; padding-block: 9px; }
+  .living-mosaic-app .panel-paint .panel-content { padding-top: 12px; }
+  .living-mosaic-app .paint-kit-modes[data-mode=draw] + .paint-kit-colors { margin-top: 12px; }
+  .living-mosaic-app .paint-kit-modes button { min-height: 44px; }
+  .living-mosaic-app .stamp-selection { margin-top: 12px; }
+  .living-mosaic-app .stamp-selection-art { width: 48px; height: 48px; }
+  .living-mosaic-app .stamp-selection-art > .pixel-shape { width: 36px; height: 36px; }
+  .living-mosaic-app .stamp-shelf { gap: 6px; }
+  .living-mosaic-app .stamp-shelf > button { min-height: 74px; }
+  .living-mosaic-app .paint-kit-place { bottom: -17px; }
+}
+@media (max-width: 359px) {
+  .living-mosaic-app .paint-kit-swatches { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
+  .living-mosaic-app .stamp-art[data-shape=carriage] > .pixel-shape { width: 38px; height: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-mosaic-app .paint-kit-active, .living-mosaic-app .stamp-art, .living-mosaic-app .paint-chip > span { transition: none; }
+  .living-mosaic-app .stamp-selection-art > .pixel-shape { animation: none; }
+  .living-mosaic-app .stamp-shelf > button:hover .stamp-art, .living-mosaic-app .stamp-shelf > button:active .stamp-art, .living-mosaic-app .paint-chip:hover > span { transform: none; }
+  .living-mosaic-app .contribution-mark-ray { display: none; animation: none; }
+  .living-mosaic-app .contribution-mark-label { animation: none; transform: translateX(-50%); }
+}

@@ -1,0 +1,64 @@
+/* The writing surface is the material that will go onto the canvas. */
+.living-mosaic-app .composer .public-label { margin-bottom: 12px; }
+.living-mosaic-app .composer .type-switch { margin-top: 12px; margin-bottom: 25px; }
+.living-mosaic-app .composer .type-switch > button { min-height: 44px; }
+.living-mosaic-app .composer .composer-artifact { position: relative; min-width: 0; margin: 0 2px; padding: 20px 17px 13px; color: #493650; }
+.living-mosaic-app .composer .composer-sheet { background: var(--draft-paper); border-radius: 2px 2px 14px 2px; box-shadow: 0 3px 5px #5038530b, 0 12px 20px -12px #50385338; }
+.living-mosaic-app .composer .composer-sheet::before { content: ""; position: absolute; width: 56px; height: 16px; top: -8px; left: calc(50% - 28px); background: #f8e3a6c9; border: 1px solid #e0c98852; transform: rotate(-4deg); pointer-events: none; }
+.living-mosaic-app .composer .composer-sheet::after { content: ""; position: absolute; right: 0; bottom: 0; width: 17px; height: 17px; background: color-mix(in srgb, var(--draft-paper) 70%, #9b7d91); clip-path: polygon(100% 0, 100% 100%, 0 100%); opacity: .5; pointer-events: none; }
+.living-mosaic-app .composer .composer-artifact .field { color: #614b66; font-size: 11px; margin: 0; gap: 6px; }
+.living-mosaic-app .composer .composer-artifact textarea { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 5px; box-shadow: none; padding: 7px 0 25px; min-height: 146px; max-height: 290px; font: 500 22px/1.4 var(--font-hand); letter-spacing: 0; color: #423047; caret-color: #694a84; }
+.living-mosaic-app .composer .composer-artifact textarea::placeholder { color: #6d5570; opacity: 1; }
+.living-mosaic-app .composer .composer-artifact textarea:focus { background: transparent; outline: none; border-color: transparent; }
+.living-mosaic-app .composer .composer-artifact textarea:focus-visible { outline: 2px solid #795898; outline-offset: 4px; }
+.living-mosaic-app .composer .composer-artifact .field-counter { margin: -28px 2px 2px 0; color: #705475; font-size: 9px; padding-bottom: 5px; }
+.living-mosaic-app .composer .composer-artifact .composer-title { border-top: 1px dashed #80618455; padding-top: 10px; margin-top: 9px; }
+.living-mosaic-app .composer .composer-artifact .composer-title input { min-height: 38px; padding: 3px 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #493650; font-size: 14px; }
+.living-mosaic-app .composer .composer-artifact .composer-title input::placeholder { color: #6d5570; }
+.living-mosaic-app .composer .composer-artifact .composer-title input:focus { outline: 2px solid #795898; outline-offset: 3px; }
+.living-mosaic-app .composer .composer-artifact ::selection { color: #392b44; background: #e3c4f3; }
+.living-mosaic-app .composer .paper-picker { margin: 12px 0 9px; gap: 8px; }
+.living-mosaic-app .composer .paper-picker > span { color: #6b5073; }
+.living-mosaic-app .composer .paper-picker > div { gap: 2px; }
+.living-mosaic-app .composer .paper-sample { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #5e4475; }
+.living-mosaic-app .composer .paper-sample-sheet { position: relative; display: block; width: 24px; height: 29px; border-radius: 1px 1px 6px 1px; background: var(--sample-paper); box-shadow: 0 2px 3px #49364f22; transform: rotate(-5deg); transition: transform 150ms var(--toy-ease); }
+.living-mosaic-app .composer .paper-sample-sheet::after { content: ""; position: absolute; bottom: 0; right: 0; width: 7px; height: 7px; background: #7a527733; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.living-mosaic-app .composer .paper-sample:nth-child(even) .paper-sample-sheet { transform: rotate(5deg); }
+.living-mosaic-app .composer .paper-sample[aria-pressed=true] { background: #f1e9f6; }
+.living-mosaic-app .composer .paper-sample[aria-pressed=true] .paper-sample-sheet { transform: rotate(0) translateY(-2px); }
+.living-mosaic-app .composer .paper-sample > .pixel-icon { position: absolute; width: 13px; height: 13px; top: 16px; left: 15px; }
+.living-mosaic-app .composer .paper-sample:focus-visible, .living-mosaic-app .composer .composer-prompt > button:focus-visible { outline: 2px solid #795898; outline-offset: 2px; }
+.living-mosaic-app .composer .composer-photo { padding: 10px 10px 14px; background: #fff; border-radius: 3px; box-shadow: 0 3px 5px #5038530b, 0 12px 20px -12px #50385338; }
+.living-mosaic-app .composer .composer-photo .upload-box { position: relative; min-height: 184px; padding: 19px 9px; margin: 0 0 16px; border: 1px dashed #c4afd4; border-radius: 2px; background: #f5edf9; gap: 8px; }
+.living-mosaic-app .composer .composer-photo .upload-box > .tool-art { width: 42px; height: 42px; margin: 0 0 2px; }
+.living-mosaic-app .composer .composer-photo .upload-box .button { min-height: 44px; }
+.living-mosaic-app .composer .composer-photo .upload-box > img { display: block; width: 100%; max-height: 215px; object-fit: contain; border: 0; border-radius: 0; box-shadow: none; }
+.living-mosaic-app .composer .composer-photo .upload-box.has-image { min-height: 0; padding: 0 0 8px; border: 0; background: #f5f0f6; }
+.living-mosaic-app .composer .composer-photo .upload-filename { padding: 0 7px; color: #725878; }
+.living-mosaic-app .composer .composer-photo .composer-writing, .living-mosaic-app .composer .composer-photo .composer-title { margin-left: 6px; margin-right: 6px; }
+.living-mosaic-app .composer .composer-photo textarea { min-height: 91px; }
+.living-mosaic-app .composer .composer-link-note { padding: 15px; background: #f2edf9; border-radius: 3px 3px 12px 3px; }
+.living-mosaic-app .composer .composer-link-note textarea { min-height: 100px; font: 400 16px/1.6 var(--font-body); }
+.living-mosaic-app .composer .composer-prompt { display: flex; flex-direction: column; align-items: flex-start; margin: 0 0 13px; }
+.living-mosaic-app .composer .composer-prompt > button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 7px 0; border: 0; border-radius: 4px; color: #71538b; background: transparent; font-size: 11px; }
+.living-mosaic-app .composer .composer-prompt-copy { padding: 9px 2px 0; }
+.living-mosaic-app .composer .composer-prompt-copy > span { font-size: 10px; color: #735780; }
+.living-mosaic-app .composer .composer-prompt-copy > p { margin: 4px 0 0; color: #4f3a5b; font-size: 13px; line-height: 1.5; }
+.living-mosaic-app .composer > .button-full { margin-top: 10px; }
+@media (hover: hover) and (pointer: fine) {
+  .living-mosaic-app .composer .paper-sample:hover .paper-sample-sheet { transform: rotate(0) translateY(-3px); }
+  .living-mosaic-app .composer .composer-prompt > button:hover { color: #48315f; text-decoration: underline; text-underline-offset: 4px; }
+}
+@media (max-width: 700px) {
+  .living-mosaic-app .composer .composer-artifact { padding: 18px 13px 11px; }
+  .living-mosaic-app .composer .composer-artifact textarea { min-height: 126px; font-size: 20px; }
+  .living-mosaic-app .composer .composer-artifact .composer-title input { font-size: 16px; }
+  .living-mosaic-app .composer .composer-photo { padding: 9px 9px 12px; }
+  .living-mosaic-app .composer .composer-photo .upload-box { min-height: 165px; padding: 15px 8px; }
+  .living-mosaic-app .composer .composer-photo textarea { min-height: 86px; }
+  .living-mosaic-app .composer .composer-link-note textarea { min-height: 100px; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-mosaic-app .composer .paper-sample-sheet { transition: none; }
+  .living-mosaic-app .composer .paper-sample:hover .paper-sample-sheet { transform: none; }
+}

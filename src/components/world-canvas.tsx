@@ -12,6 +12,8 @@ import { campusArrival } from "@/lib/client/campus-arrival";
 import { CANVAS_LEVELS, canvasLevel, initialCampusCamera, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
 import { MemoryCard } from "./memory-card";
 import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
+import type { ContributionMark } from "@/lib/client/contribution-feedback";
+import { ContributionMarkView } from "./contribution-mark";
 
 export interface CameraView extends Camera { width: number; height: number }
 export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore" | "place"; points?: FramePoint[]; camera?: CameraView; place?: SharedPlace }
@@ -19,10 +21,10 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, children }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, children }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
-  brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; children?: React.ReactNode;
+  brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
@@ -315,6 +317,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       })}</svg>
       {world.memories.map(memory => <MemoryCard key={memory.id} memory={memory} selected={selectedId === memory.id} number={foundIds.includes(memory.id) ? foundIds.indexOf(memory.id) + 1 : undefined} dimmed={foundIds.length > 0 && !foundIds.includes(memory.id)} parentName={memory.inspiredBy ? memoryMap.get(memory.inspiredBy)?.authorName : undefined} onOpen={() => { if (!pending && !brush?.enabled) onOpen(memory.id); }} />)}
       {pending?.memory ? <MemoryCard memory={pending.memory} pending parentName={pending.memory.inspiredBy ? memoryMap.get(pending.memory.inspiredBy)?.authorName : undefined} /> : null}
+      {contribution ? <ContributionMarkView key={contribution.id} mark={contribution} /> : null}
     </div>
     <canvas ref={cursorCanvas} className="world-cursors" aria-hidden="true" data-peer-cursors={JSON.stringify(peers.slice(0, 100).map(({ sessionId, x, y, color, tool }) => ({ sessionId, x, y, color, tool })))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 11 }} />
     <span className="world-coordinate canvas-overlay" ref={coordinate} aria-label="Coordinates of the center of the view" />
