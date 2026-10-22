@@ -1,0 +1,49 @@
+/* Meet here extends the pixel toybox; authored content stays the focal point. */
+.living-mosaic-app .meet-here-button {
+  position: absolute; top: 76px; right: 22px; z-index: 8; display: flex; align-items: center;
+  gap: 7px; min-height: 44px; padding: 9px 14px; border: 1px solid #dfcfe9; border-radius: 13px;
+  color: #55405e; background: #fffaf4; box-shadow: 0 3px 8px #49364f12; font-size: 12px; font-weight: 650;
+}
+.living-mosaic-app .meet-here-button:hover { background: #fff0c2; }
+.share-place-panel { display: grid; gap: 16px; }
+.share-place-panel .back-link { justify-self: start; margin: 0; }
+.place-ticket { overflow: hidden; border: 1px solid #e4d8e8; border-radius: 12px; background: #fffdf8; }
+.place-preview { background: #fffdf9; color: #936ba5; }
+.place-preview-memory { border: 1px solid #5b40512b; box-shadow: 0 2px 5px #51384716; border-radius: 3px; color: #4d3958; }
+.place-preview-memory.is-linked { outline: 2px solid #9462b4; outline-offset: 2px; }
+.place-preview-copy { font-family: var(--font-caveat), cursive; }
+.place-preview-author { color: #69566e; }
+.place-preview-marker { background: #fffbf0e8; border-radius: 6px; padding: 3px; box-shadow: 0 2px 6px #51384718; }
+.place-ticket-caption { display: flex; align-items: center; gap: 10px; padding: 15px; border-top: 1px dashed #d8c6de; background: #fff6da; }
+.place-ticket-caption > svg { flex-shrink: 0; color: #775189; }
+.place-ticket-caption > div { min-width: 0; }
+.place-ticket-caption strong { display: block; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.place-ticket-caption span { display: block; color: #715d74; font-size: 11px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.share-description { margin: 0; color: #5e4966; font-size: 13px; line-height: 1.6; }
+.share-actions { display: flex; gap: 9px; }
+.share-actions .button { flex: 1; min-height: 44px; }
+.living-mosaic-app .share-link-field { margin: 0; gap: 7px; font-size: 12px; }
+.living-mosaic-app .share-link-field input { width: 100%; min-width: 0; font-size: 12px; background: #faf5ff; }
+.share-feedback:empty { display: none; }
+.share-feedback { margin: 0; font-size: 12px; line-height: 1.5; color: #604275; }
+.share-place-panel .fine-print { margin: 0; }
+.living-mosaic-app .share-original { display: flex; gap: 7px; min-height: 44px; margin: 0 0 12px; }
+.shared-arrival { position: absolute; z-index: 9; left: 22px; top: 84px; width: 304px; padding: 13px; border-radius: 14px; background: #fffaf0; box-shadow: 0 3px 9px #49364f12, 0 12px 25px #49364f14; color: #513a5e; }
+.shared-arrival-heading { display: flex; align-items: center; gap: 8px; }
+.shared-arrival-heading > svg { flex-shrink: 0; color: #8752a0; }
+.shared-arrival-heading strong { font-size: 13px; line-height: 1.4; flex: 1; }
+.living-mosaic-app .shared-arrival-heading .icon-button { min-width: 44px; min-height: 44px; width: 44px; height: 44px; margin: -6px -6px -6px 0; background: transparent; }
+.shared-arrival p { margin: 8px 0 13px; font-size: 12px; line-height: 1.5; color: #715b78; }
+.arrival-actions { display: flex; gap: 6px; }
+.arrival-actions > button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 5px; flex: 1; padding: 8px; border: 1px solid #e1cde9; border-radius: 10px; background: #f2e6ff; color: #624373; font-size: 11px; font-weight: 650; }
+.arrival-actions > button:first-child { flex: 1.4; background: #fce3ed; border-color: #eac6d9; color: #79435e; }
+.arrival-actions > button:last-child { background: #e8efff; border-color: #cdd8f0; color: #495c87; }
+.arrival-actions > button:hover { filter: brightness(.97); }
+.living-mosaic-app .panel-share .panel-title-icon { background: #fff0c2; color: #775189; }
+@media (max-width: 700px) {
+  .living-mosaic-app .meet-here-button { top: 64px; right: 10px; padding: 8px 11px; }
+  .shared-arrival { top: 119px; left: 10px; width: min(304px, calc(100% - 20px)); padding: 12px; }
+  .living-mosaic-app .panel-share { max-height: min(68dvh, 570px); }
+  .living-mosaic-app .share-link-field input { font-size: 16px; }
+  .share-place-panel { gap: 13px; }
+}

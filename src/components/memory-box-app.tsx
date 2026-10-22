@@ -25,10 +25,12 @@ import { BoxMark } from "./box-mark";
 import { PixelToolIcon } from "./pixel-tool-icon";
 import { ToolButton, ToolHints } from "./tool-button";
 import { WorldCanvas, type CameraCommand, type CameraView, type PendingPlacement } from "./world-canvas";
+import { parseSharedPlace, sharedPlaceFromCamera, sharedPlaceForOriginal, type SharedPlace } from "@/lib/client/shared-place";
+import { SharePlacePanel } from "./share-place-panel";
 
-type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "people" | null;
+type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "people" | "share" | null;
 type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
-const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", people: "Who’s here" };
+const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", people: "Who’s here", share: "Meet here" };
 const relativeDate = (date: string) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date));
 function revealMobilePanel() {
   // The reader is now a bottom sheet over the world. Keep the shared place in view.
@@ -55,6 +57,9 @@ export function MemoryBoxApp() {
   const [backToDraft, setBackToDraft] = useState(false);
   const [reportId, setReportId] = useState<string | null>(null), [reportReason, setReportReason] = useState("");
   const [command, setCommand] = useState<CameraCommand>({ key: 0, type: "fit" });
+  const [sharePlace, setSharePlace] = useState<SharedPlace | null>(null);
+  const [incomingPlace, setIncomingPlace] = useState<SharedPlace | null>(null);
+  const [arrival, setArrival] = useState<SharedPlace | null>(null);
   const {seconds:paintWait,known:paintTurnKnown,accept:acceptPaintTurn,rejected:handlePaintRejection}=usePaintTurn(identity?.id,connection==="live",panel==="paint"||pending?.kind==="paint");
   const panelHeading = useRef<HTMLHeadingElement>(null), searchInput = useRef<HTMLTextAreaElement>(null), searchSequence = useRef(0);
   const invitationElement = useRef<HTMLButtonElement>(null), livePainter = useRef(presence.peers.find(peer=>peer.tool==="paint"));
@@ -65,6 +70,35 @@ export function MemoryBoxApp() {
   const searchDataRef = useRef(searchData), connectionRef = useRef(connection);
   searchDataRef.current = searchData; connectionRef.current = connection;
   const panelRef = useRef(panel); panelRef.current = panel;
+
+  useEffect(() => {
+    const readLink = () => {
+      const place = parseSharedPlace(window.location.hash);
+      setArrival(null);
+      setIncomingPlace(place);
+      if (place && (panelRef.current === "compose" || panelRef.current === "paint")) setAnnouncement("A shared spot is ready. Finish your preview or close your tool to open it. Your draft stays here.");
+      if (!place && /(?:^#|&)at=/.test(window.location.hash)) setAnnouncement("That spot link isn’t valid. You can still explore the canvas.");
+    };
+    readLink();
+    window.addEventListener("hashchange", readLink);
+    return () => window.removeEventListener("hashchange", readLink);
+  }, []);
+
+  useEffect(() => {
+    if (!world || !incomingPlace || busy || pending || panel === "compose" || panel === "paint" || brushPixels.length) return;
+    const original = world.memories.find(memory => memory.id === incomingPlace.memoryId);
+    setIncomingPlace(null); setArrival(original ? null : incomingPlace); setSelectedId(original?.id ?? null);
+    setBackToSearch(false); setBackToDraft(false); setPanelExpanded(false); setDeleteConfirm(false); setFormError("");
+    setActiveScene(original?.sceneId ?? sceneForPoint(incomingPlace.x, incomingPlace.y));
+    if (original) {
+      setPanel("inspect");
+      setCommand(old => ({ key: old.key + 1, type: "focus", points: [{ ...original, ...memorySize(original) }] }));
+    } else {
+      setPanel(null);
+      setCommand(old => ({ key: old.key + 1, type: "place", place: incomingPlace }));
+    }
+    setAnnouncement(original ? "Opened the shared original." : incomingPlace.memoryId ? "That original is no longer available. You’re at its shared spot." : "You’re at the shared spot. Choose a tool to join in.");
+  }, [world, incomingPlace, busy, pending, panel, brushPixels.length]);
 
   const selected = world?.memories.find((memory) => memory.id === selectedId);
   const parent = world?.memories.find((memory) => memory.id === draft?.inspiredBy);
@@ -125,6 +159,7 @@ export function MemoryBoxApp() {
     const scene = sceneById(id); cameraTo([{ x: scene.x - 240, y: scene.y - 185, width: 480, height: 370 }], "frame");
   };
   const openMemory = (id: string, fromSearch = false, fromDraft = false) => {
+    setArrival(null);
     setAnnouncement("");
     setBackToDraft(fromDraft && !!draft);
     const memory = world?.memories.find((item) => item.id === id);
@@ -151,20 +186,29 @@ export function MemoryBoxApp() {
     cameraTo([{ x:place.x,y:place.y,width:place.width,height:place.height }], "frame");
   };
   const showWholeWorld = () => { closePanel();setPending(null);setCommand(old=>({key:old.key+1,type:"fit"})); };
+  const openShare = (memory?: Memory) => {
+    const view = cameraView.current;
+    const place = memory ? sharedPlaceForOriginal(memory, memorySize(memory), view?.z ?? 1) : view ? sharedPlaceFromCamera(view) : null;
+    if (!place) { setAnnouncement("Move back inside the drawing area to share a spot."); return; }
+    setSharePlace(place); setPanel("share"); setArrival(null); setFormError("");
+  };
   const startMemory = (inspiredBy?: string, paintOperationId?: string, type: MemoryType = "text") => {
+    setAnnouncement("");
+    setArrival(null);
     setDraft({ ...newDraft(inspiredBy, paintOperationId), type }); setPending(null); setPanel("compose"); setBackToSearch(false); setBackToDraft(false); setFormError("");
     const original = world?.memories.find((memory) => memory.id === inspiredBy);
     if (original) { setActiveScene(original.sceneId); setSelectedId(original.id); }
     else setSelectedId(null);
   };
   const showPaint = () => {
+    setArrival(null);
     setAnnouncement("");
     setPanel("paint"); setPending(null); setSelectedId(null); setBackToSearch(false); setBackToDraft(false); setFormError("");
     const view = cameraView.current;
     if (paintMode === "draw" && view && view.z < 1.7) setCommand(old => ({ key: old.key + 1, type: "restore", camera: { ...view, ...zoomCameraAt(view, 1.7 / view.z, { x: view.width / 2, y: view.height / 2 }) } }));
   };
   const resumeDraft = () => { setPanel("compose"); setPending(null); setBackToDraft(false); setBackToSearch(false); };
-  const closePanel = () => { setBackToDraft(false); setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); };
+  const closePanel = () => { setArrival(null); setBackToDraft(false); setPanel(null); setSelectedId(null); setBackToSearch(false); setDeleteConfirm(false); setFormError(""); };
   const cancelPlacement = useCallback(() => { setPending((previous) => { setPanel(previous?.kind === "memory" ? "compose" : "paint"); return null; }); setFormError(""); }, []);
 
   const previewMemory = () => {
@@ -350,6 +394,7 @@ export function MemoryBoxApp() {
       {selected.type === "link" && selected.url ? <a className="original-url" href={selected.url} target="_blank" rel="noopener noreferrer"><Link2 size={15} />{new URL(selected.url).hostname}<ArrowUpRight size={14} /></a> : null}
       <div className="panel-actions"><button type="button" className="button button-primary" onClick={() => startMemory(selected.id)}><GitBranch size={16} />Build on this</button><button type="button" className="button button-secondary" onClick={() => { void runSearch("find", selected.title || selected.body.slice(0, 70), "all"); }}>Find connections</button></div>
       <button type="button" className="text-button show-in-world" onClick={() => { setPanel(null); cameraTo([{ ...selected, ...memorySize(selected) }]); revealCanvas(); }}><MapPin size={14} />Show in canvas<ArrowUpRight size={13} /></button>
+      <button type="button" className="text-button share-original" onClick={() => openShare(selected)}><Link2 size={14} />Share original</button>
       <div className="original-date">Left {relativeDate(selected.createdAt)}</div>
       {selected.isSeed ? <p className="seed-disclosure">Fictional example.</p> : null}
       {selected.indexStatus === "pending" ? <p className="index-status"><span className="spinner" />Finding its connections. Your words are already searchable.</p> : selected.indexStatus === "failed" ? <p className="index-status">Your words are searchable. Finding deeper connections will retry.</p> : null}
@@ -411,11 +456,12 @@ export function MemoryBoxApp() {
 
   function renderPanel() {
     if (!world) return null;
+    if (panel === "share" && sharePlace) return <SharePlacePanel world={world} place={sharePlace} onBack={sharePlace.memoryId && selected ? () => setPanel("inspect") : undefined} />;
     if (panel === "people") return <div className="people-panel">
       <div className="presence-self"><span className="person-avatar">{identity?.name.slice(0,1).toUpperCase() || "Y"}</span><div><strong>{identity?.name || "You"}</strong><small>{presence.connected ? "You’re here" : "Joining live presence…"}</small></div><button type="button" className="text-button" aria-label={`Your profile, ${identity?.name ?? "guest"}`} onClick={openProfile}>Your name<ArrowUpRight size={13}/></button></div>
       {presence.visitors.map(visitor => { const peer=presence.peers.find(p=>p.sessionId===visitor.sessionId);return <div className="presence-visitor" data-peer-id={visitor.sessionId} key={visitor.sessionId}><span className="person-avatar" style={{background:visitor.color}}>{visitor.name.slice(0,1).toUpperCase()}</span><div><strong>{visitor.name}</strong><small>{peer?.tool==="paint" ? "Painting pixels" : peer?.tool==="note" ? "Leaving something" : "Wandering the world"}</small></div>{peer ? <button type="button" className="text-button" aria-label={`Visit ${visitor.name}`} onClick={()=>{closePanel();cameraTo([{x:peer.x-170,y:peer.y-130,width:340,height:260}],"frame");}}>Visit<ArrowUpRight size={13}/></button> : null}</div>; })}
       {presence.connected && !presence.visitors.length ? <div className="quiet-world"><h3>No one else is here.</h3><p>Copy the link to invite someone.</p></div> : null}
-      <button type="button" className="button button-primary button-full" onClick={async()=>{try{await navigator.clipboard.writeText(window.location.origin);setAnnouncement("Invite link copied. Open it in another browser or send it to a friend.");}catch{setAnnouncement("Share this page’s address to invite someone into the same world.");}}}><Copy size={15}/>Copy invite link</button>
+      <button type="button" className="button button-primary button-full" onClick={() => openShare()}><MapPin size={16}/>Invite someone here</button>
       <div className="people-links"><button type="button" className="text-button" aria-label="Browse" onClick={()=>{setPanel("browse");setSelectedId(null);setBackToSearch(false);}}><List size={15}/>Browse originals</button><button type="button" className="text-button" onClick={()=>setPanel("activity")}>See what changed<ArrowUpRight size={13}/></button></div>
     </div>;
     if (panel === "together") return <div className="together-panel"><h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={16}/>Paint here</button><button type="button" className="button button-secondary" onClick={()=>startMemory()}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>startMemory(undefined,undefined,"image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div></div>;
@@ -432,7 +478,7 @@ export function MemoryBoxApp() {
   }
 
   const latestChange = world?.events.find(event=>!event.isSeed && Date.now()-new Date(event.createdAt).getTime()<5*60_000);
-  const PanelIcon = panel === "paint" ? Paintbrush : panel === "people" || panel === "together" ? UsersRound : panel === "search" ? searchMode === "ask" ? MessageCircle : Search : panel === "profile" ? UserRound : panel === "compose" ? draft?.type === "image" ? ImageIcon : StickyNote : panel === "report" ? Flag : StickyNote;
+  const PanelIcon = panel === "share" ? MapPin : panel === "paint" ? Paintbrush : panel === "people" || panel === "together" ? UsersRound : panel === "search" ? searchMode === "ask" ? MessageCircle : Search : panel === "profile" ? UserRound : panel === "compose" ? draft?.type === "image" ? ImageIcon : StickyNote : panel === "report" ? Flag : StickyNote;
   return <ToolHints><main className="memory-box-app living-mosaic-app">
     <h1 className="visually-hidden">Memory Box canvas</h1>
     <header className="app-header">
@@ -448,6 +494,12 @@ export function MemoryBoxApp() {
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
       {world ? <div className="world-column"><WorldCanvas world={world} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={showScene} onOpen={(id) => openMemory(id, panel === "search" || backToSearch)} onPosition={updatePosition}>
+        {!panel && !pending ? <button type="button" className="meet-here-button canvas-overlay" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
+        {arrival && !panel && !pending ? <div className="shared-arrival canvas-overlay" aria-label="Shared spot">
+          <div className="shared-arrival-heading"><MapPin size={22} /><strong>{arrival.memoryId ? "This original is unavailable" : "You’re at the shared spot"}</strong><button type="button" className="icon-button" aria-label="Dismiss shared spot" onClick={() => setArrival(null)}><X size={16} /></button></div>
+          <p>{arrival.memoryId ? "Its spot is still here to explore." : "Paint together, or add something nearby."}</p>
+          <div className="arrival-actions"><button type="button" onClick={showPaint}><Paintbrush size={16} />Paint here</button><button type="button" onClick={() => draft ? (setArrival(null), resumeDraft()) : startMemory()}><StickyNote size={16} />{draft ? "Your draft" : "Note"}</button><button type="button" onClick={() => startMemory(undefined, undefined, "image")}><ImageIcon size={16} />Photo</button></div>
+        </div> : null}
         <button type="button" className="world-presence canvas-overlay" aria-label="Who is here" data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>
         {!panel && !pending ? <button type="button" ref={invitationElement} className="mosaic-invitation canvas-overlay" onClick={buildTogether}><span className="pixel-invite-mark" aria-hidden="true">▪ ▪ ▪</span><span><strong>{presence.peers.some(p=>p.tool==="paint") ? "Someone is making something." : landmark.title}</strong><small>{presence.peers.some(p=>p.tool==="paint") ? "Go paint beside them ↗" : "Make your next move here ↗"}</small></span></button> : null}
         {!panel && latestChange ? <button type="button" className="world-change canvas-overlay" onClick={()=>setPanel("activity")}><span className="presence-light is-live"/><span><strong>{latestChange.authorName}</strong> {latestChange.description}<small>{relativeDate(latestChange.createdAt)}</small></span></button> : null}
@@ -466,6 +518,6 @@ export function MemoryBoxApp() {
         <div className="panel-content" ref={panelContent}>{renderPanel()}</div>
       </aside> : null}
     </div>
-    <div className="app-announcement" role="status" aria-live="polite">{announcement}</div>
+    <div className={`app-announcement${arrival || panel === "share" ? " visually-hidden" : ""}`} role="status" aria-live="polite">{announcement}</div>
   </main></ToolHints>;
 }
