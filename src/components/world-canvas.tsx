@@ -8,6 +8,7 @@ import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
 import { arrivalBounds, frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
 import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
 import { campusArrival } from "@/lib/client/campus-arrival";
+import { CANVAS_LEVELS, canvasLevel, initialCampusCamera, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
 import { MemoryCard } from "./memory-card";
 
 export interface CameraView extends Camera { width: number; height: number }
@@ -29,7 +30,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const suppressCardClickUntil = useRef(0);
   const latest = useRef({ world, pending, brush, onCameraChange, peers, onCursor });
   latest.current = { world, pending, brush, onCameraChange, peers, onCursor };
-  const [zoom, setZoom] = useState(80), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
+  const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
 
   const draw = useCallback(() => {
     const target = canvas.current, element = board.current;
@@ -105,8 +106,10 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       transformed.current.dataset.small = String(z < .9);
       transformed.current.dataset.overview = String(z < .5);
       transformed.current.dataset.map = String(z < .15);
+      transformed.current.dataset.level = canvasLevel(z);
     }
     element.dataset.cameraX = String(x); element.dataset.cameraY = String(y); element.dataset.cameraZoom = String(z);
+    element.dataset.zoomLevel = canvasLevel(z);setLevel(canvasLevel(z));
     element.style.setProperty("--grid-x", `${x}px`); element.style.setProperty("--grid-y", `${y}px`);
     const center = screenToWorld(camera.current, { x: element.clientWidth / 2, y: element.clientHeight / 2 });
     if (coordinate.current) coordinate.current.textContent = `x ${Math.round(center.x).toLocaleString()} · y ${Math.round(center.y).toLocaleString()}`;
@@ -143,6 +146,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (!element) return;
     const occupied = (closerMobile?campusArrival(latest.current.world.memories):null) ?? (closerMobile ? arrivalBounds : occupiedBounds)(latest.current.world.memories.map(memory => ({ ...memory, ...memorySize(memory) })), latest.current.world.pixels, GRID_SIZE);
     const size = { width: element.clientWidth, height: element.clientHeight };
+    const campus=closerMobile?initialCampusCamera(latest.current.world.memories,size):null;
+    if(campus){animateCamera(campus,animate);return;}
     let target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: .85 });
     if (closerMobile) target = zoomCameraAt(target, size.width < 700 ? 1.65 : Math.min(1.5, .85 / target.z), { x: size.width / 2, y: size.height / 2 });
     animateCamera(target, animate);
@@ -302,6 +307,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     <span className="world-coordinate canvas-overlay" ref={coordinate} aria-label="Coordinates of the center of the view" />
     <span className="canvas-guidance canvas-overlay">{gestureNotice || (zoom < 15 ? "The whole mosaic · zoom into a fragment" : brush?.enabled ? "Draw a preview · pinch to zoom · Shift + drag to pan" : pending ? "Tap to place · drag to explore" : "Drag to wander · pinch to zoom")}</span>
     {children}
+    <div className="canvas-levels canvas-overlay" role="group" aria-label="Canvas zoom levels">
+      {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));}}>{option.label}</button>)}
+    </div>
     <div className="canvas-zoom canvas-overlay">
       <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out"><Minus size={17} /></button><span>{zoom}%</span><button type="button" onClick={() => zoomBy(1.25)} aria-label="Zoom in"><Plus size={17} /></button><span className="zoom-divider" />
       <button type="button" onClick={() => entryView()} aria-label="See the whole mosaic"><Maximize2 size={16} /></button><button type="button" onClick={() => setPanOpen(!panOpen)} aria-label="Move the view" aria-expanded={panOpen}><Compass size={17} /></button>

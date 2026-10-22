@@ -16,7 +16,7 @@ export const PEER_TTL_MS = 10_000;
 export const STROKE_TTL_MS = 2_000;
 export const MAX_PREVIEW_CELLS = 128;
 export const MAX_VISIBLE_PEERS = 100;
-const COLORS = ["#7964AB", "#B57191", "#5876BD", "#A67C45", "#756C9E", "#9C6091"];
+const COLORS = ["#8760BB", "#BD3F61", "#4E59D5", "#916B20", "#6C62AB", "#B14E81"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEX = /^#[0-9a-f]{6}$/i;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);

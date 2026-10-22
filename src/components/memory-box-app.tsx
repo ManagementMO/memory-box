@@ -39,7 +39,7 @@ export function MemoryBoxApp() {
   const [landmarkIndex, setLandmarkIndex] = useState(0);
   const visited = useRef<string[]>([]);
   const [draft, setDraft] = useState<MemoryDraft | null>(null), [pending, setPending] = useState<Pending | null>(null);
-  const [shape, setShape] = useState<ShapeId>("goose"), [paintColor, setPaintColor] = useState("#BDA9E9");
+  const [shape, setShape] = useState<ShapeId>("goose"), [paintColor, setPaintColor] = useState("#F3617C");
   const [paintMode, setPaintMode] = useState<"draw" | "shape">("draw"), [brushPixels, setBrushPixels] = useState<Pixel[]>([]);
   const [busy, setBusy] = useState(""), [formError, setFormError] = useState(""), [announcement, setAnnouncement] = useState("");
   const [query, setQuery] = useState(""), [searchMode, setSearchMode] = useState<"find" | "ask">("find"), [scope, setScope] = useState<"all" | "scene">("all");
@@ -99,7 +99,7 @@ export function MemoryBoxApp() {
     const place=invitationLandmark.current,painter=livePainter.current;
     const x=(painter?.x??place.x+place.width/2)*view.z+view.x;
     const y=(painter?.y??place.y)*view.z+view.y-65;
-    element.hidden=view.z>.72||x<45||x>view.width-45||y<95||y>view.height-130;
+    element.hidden=!painter||view.z>.72||x<45||x>view.width-45||y<95||y>view.height-130;
     element.style.left=`${Math.max(125,Math.min(view.width-125,x))}px`;
     element.style.top=`${y}px`;
   }, []);
@@ -345,11 +345,11 @@ export function MemoryBoxApp() {
       {selected.type === "image" && selected.imageUrl ? <div className="original-image"><img src={selected.imageUrl} alt={selected.title || "A contribution to Memory Box"} /></div> : null}
       {selected.body ? <div className="original-body">{selected.body}</div> : null}
       {selected.type === "link" && selected.url ? <a className="original-url" href={selected.url} target="_blank" rel="noopener noreferrer"><Link2 size={15} />{new URL(selected.url).hostname}<ArrowUpRight size={14} /></a> : null}
+      <div className="panel-actions"><button type="button" className="button button-primary" onClick={() => startMemory(selected.id)}><GitBranch size={16} />Build on this</button><button type="button" className="button button-secondary" onClick={() => { void runSearch("find", selected.title || selected.body.slice(0, 70), "all"); }}>Find connections</button></div>
       <button type="button" className="text-button show-in-world" onClick={() => { setPanel(null); cameraTo([{ ...selected, ...memorySize(selected) }]); revealCanvas(); }}><MapPin size={14} />Show in canvas<ArrowUpRight size={13} /></button>
       <div className="original-date">Left {relativeDate(selected.createdAt)}</div>
       {selected.isSeed ? <p className="seed-disclosure">A fictional starter memory, placed here to make room for yours.</p> : null}
       {selected.indexStatus === "pending" ? <p className="index-status"><span className="spinner" />Finding its connections. Your words are already searchable.</p> : selected.indexStatus === "failed" ? <p className="index-status">Your words are searchable. Finding deeper connections will retry.</p> : null}
-      <div className="panel-actions"><button type="button" className="button button-primary" onClick={() => startMemory(selected.id)}><GitBranch size={16} />Build on this</button><button type="button" className="button button-secondary" onClick={() => { void runSearch("find", selected.title || selected.body.slice(0, 70), "all"); }}>Find connections</button></div>
       {descendants.length ? <div className="descendants"><h4>{descendants.length === 1 ? "A memory grew from this" : `${descendants.length} memories grew from this`}</h4>{descendants.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id, backToSearch)} />)}</div> : <div className="grow-invitation"><GitBranch size={16} /><span>This could be the start of something. Leave a memory of your own beside it.</span></div>}
       {own ? <div className="owner-actions">
         <button type="button" className="text-button" onClick={() => {

@@ -7,8 +7,9 @@ export const SCENES: Scene[] = [
   { id: "garden", title: "Things we’re growing", invitation: "An unfinished garden for unfinished ideas. Add something you’d like someone else to grow.", x: 1000, y: 330 },
 ];
 export const SCENE_LABELS: Record<SceneId, { x: number; y: number }> = { mixtape: { x: 420, y: 92 }, pond: { x: 52, y: 305 }, garden: { x: 924, y: 80 } };
-export const PAPER_COLORS = ["#FFF3BF", "#EDE6FF", "#F8E2EB", "#FFE8D6", "#E9F1FF"];
+export const PAPER_COLORS = ["#FFED9C", "#E4D8FB", "#FFD3E3", "#FFE3CE", "#DCEAFC"];
 export const PAINT_COLORS = [
+  { name: "Coral", value: "#F3617C" }, { name: "Candy pink", value: "#F5A0C1" },
   { name: "Ink", value: "#292B3A" }, { name: "White", value: "#FFFFFF" }, { name: "Cobalt", value: "#3659DB" },
   { name: "Butter", value: "#F0D66E" }, { name: "Blush", value: "#E7ABC6" }, { name: "Lilac", value: "#BDA9E9" },
   { name: "Sky", value: "#A3B5EB" }, { name: "Apricot", value: "#E9BC94" }, { name: "Leaf", value: "#64936E" },

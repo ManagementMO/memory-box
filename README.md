@@ -8,6 +8,8 @@ A world of little lives. Get lost in a sprawling mosaic, paint something ridicul
 
 **[Open the live commons](https://memory-box-commons.vercel.app)**
 
+The canvas now has three distances: **Whole patch**, **Wander**, and **Up close**. These keep the same world center while changing scale; free pan, pinch and World remain available. Campus arrival starts beside the goose at a readable distance on phones. Overview shows titles and photo miniatures, closer views reveal authored excerpts, and the reader keeps the full original and its build-on action. Notes have stable scrap/caption/ticket materials; photos stay framed snapshots. All pixel colors and original positions remain authoritative.
+
 Memory Box combines a large sparse collaborative pixel world with an attributed collection of text, images, and links. The canvas is shared; each memory remains its author's original. A response creates a separate memory connected by an explicit “built on” thread.
 
 ## Try the loop
@@ -83,6 +85,8 @@ The private function secret file contains `EMBEDDING_SECRET`, matching the app e
 The optional living-mosaic expansion is prepared separately with `npx tsx scripts/seed-living-world.ts --sql ../work/living-world.sql`. Review that generated transaction, deploy its bundled illustrations, then apply it with `supabase db query --linked --file ../work/living-world.sql`. It only inserts missing cells/originals, locks the authoritative world row, and records one honest starter event. An exact operation marker makes successful reruns no-ops, including after later visitor edits. It never recreates a removed starter on a successful repeat. Normal indexing budgets still apply, so new words are immediately searchable while semantic/image indexing can continue in the background.
 
 The separate Waterloo expansion uses `npx tsx scripts/seed-waterloo-world.ts --sql ../work/waterloo-world.sql`, followed by the same review/deploy/apply workflow. It adds 24 originals, four illustrations and 7,170 editable cells without changing the earlier seed payload. For its explicit initial semantic backfill, `npx tsx scripts/index-waterloo-seed.ts --run` first verifies every persisted source's exact seed provenance, then leases only those 24 IDs in batches of four under a separate bounded operator allowance of 24/day. It uses the same source-version checks and image/embedding processor. Public indexing remains limited to 80/day; successful backfill repeats lease no jobs. This command loads ignored local server configuration and must be operated only against the reviewed target.
+
+The approved poppy-canvas addition uses `scripts/seed-poppy-world.ts` with the same preparation/review/deploy/apply workflow. It proposes six explicitly fictional originals, one disclosed generated photo and320 accent cells near the existing goose. Its separate marker never overwrites older content or replays removed starters. Deploy `public/starter-world/uw-after-hours.svg` before import; it is a self-contained raster photo inside the existing trusted SVG starter format. `npx tsx scripts/index-poppy-seed.ts --run` verifies the exact six persisted sources and initializes only those IDs under a bounded six/day operator allowance. It uses the normal source-version-fenced processor; public budgets and private visitor uploads are unchanged.
 
 ## Validate
 
