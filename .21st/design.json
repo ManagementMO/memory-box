@@ -14,14 +14,18 @@
       "src/app/poppy-canvas.css",
       "src/app/toybox.css",
       "src/app/compact-ui.css",
-      "src/app/spatial-mosaic.css"
+      "src/app/spatial-mosaic.css",
+      "src/app/open-builds.css"
     ],
     "components": [
       "src/components/canvas-dock.tsx",
       "src/components/tool-button.tsx",
       "src/components/pixel-tool-icon.tsx",
       "src/components/memory-card.tsx",
-      "src/components/story-peek.tsx"
+      "src/components/story-peek.tsx",
+      "src/components/build-workbench.tsx",
+      "src/components/memory-composer.tsx",
+      "src/components/memory-box-app.tsx"
     ],
     "assets": [
       "public/favicon.svg",
@@ -103,6 +107,8 @@
       "White/pastel pixel identity; actual stored artwork keeps its colors and positions",
       "All six tool labels visible on touch; stationary hit targets at least 44px",
       "No fabricated participants, stories or activity",
+      "Open builds show actual current invitations and source-backed contributions; joining does not imply membership, completion or contributor counts",
+      "Floating mobile workbench and reply sheets reserve 82px for the dock, scroll within 60dvh/440px and keep actions at least 44px tall",
       "Keep real-time, painting, private image upload, build-on and source-backed search behavior",
       "Respect reduced motion; retain keyboard focus and tooltip dismissal"
     ],
@@ -114,6 +120,11 @@
     ]
   },
   "decisions": [
+    {
+      "date": "2026-10-22",
+      "direction": "Open builds in the shared mosaic",
+      "reason": "Extend the existing white/pastel pixel identity with an optional native invitation checkbox below the writing artifact, a lilac Open build badge and actual newest-first invitations ahead of preset patches in Together. Join opens a workbench anchored to the original, with its real author/request/photo, shared-pixel painting, controlled source-linked notes/photos and existing read/share actions. Reuse Pixelify, readable body type, stepped buttons and the bounded mobile sheet; reserve 82px for the floating dock and retain 44px mobile actions. Accepted paint saves capture their actual build source for later attachment. Closed or removed sources show factual status and a return to Together. Joining adds no membership, completion or contributor counts, and the extension adds no library, font, art asset or replacement system."
+    },
     {
       "date": "2026-10-22",
       "direction": "Living mosaic discovery",
@@ -150,7 +161,39 @@
     {
       "fact": "project.stack:react",
       "source": "package.json"
+    },
+    {
+      "fact": "components.sourceAnchoredBuildWorkbench",
+      "source": "src/components/build-workbench.tsx"
+    },
+    {
+      "fact": "components.nativeInvitationCheckboxBelowWritingArtifact",
+      "source": "src/components/memory-composer.tsx"
+    },
+    {
+      "fact": "components.openBuildCanvasBadge",
+      "source": "src/components/memory-card.tsx"
+    },
+    {
+      "fact": "components.invitationPreviewJoinAction",
+      "source": "src/components/story-peek.tsx"
+    },
+    {
+      "fact": "design.openBuildPixelMaterialsAndMobileActions",
+      "source": "src/app/open-builds.css"
+    },
+    {
+      "fact": "behavior.actualNewestFirstInvitations",
+      "source": "src/lib/client/build-invitations.ts"
+    },
+    {
+      "fact": "behavior.sourceLinkedBuildContributionsAndSavedPaintSource",
+      "source": "src/components/memory-box-app.tsx"
+    },
+    {
+      "fact": "layout.mobileFloatingDockClearance:82px",
+      "source": "src/lib/client/story-neighborhood.ts"
     }
   ],
-  "generatedAt": "2026-10-22T07:46:03.762Z"
+  "generatedAt": "2026-10-22T22:57:17Z"
 }

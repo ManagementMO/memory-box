@@ -27,8 +27,10 @@ export const newMemoryInput = z.object({
   y: z.int().min(WORLD_MIN).max(WORLD_MAX),
   sceneId,
   inspiredBy: identifier.optional(),
+  isBuildInvitation: z.boolean().optional(),
   paintOperationId: identifier.optional()
 }).superRefine((input, ctx) => {
+  if (input.isBuildInvitation && !input.body) ctx.addIssue({code:"custom",path:["body"],message:"Say what people can help make."});
   if (input.type === "text" && !input.body) ctx.addIssue({code: "custom", path: ["body"], message: "Leave a few words before publishing."});
   if (input.type === "image" && !input.assetId) ctx.addIssue({code: "custom", path: ["assetId"], message: "Choose an image first."});
   if (input.type === "link" && !input.url) ctx.addIssue({code: "custom", path: ["url"], message: "Add a complete link first."});
@@ -40,7 +42,10 @@ export const editMemoryInput = z.object({
   title: z.string().trim().max(80),
   body: z.string().trim().max(2000),
   url: safeUrl.nullable().optional(),
-  color: hexColor.optional()
+  color: hexColor.optional(),
+  isBuildInvitation: z.boolean().optional()
+}).superRefine((input,ctx)=>{
+  if(input.isBuildInvitation && !input.body) ctx.addIssue({code:"custom",path:["body"],message:"Say what people can help make."});
 });
 
 export const queryInput = z.object({query: z.string().trim().min(2, "Try a few more words.").max(400), sceneId: sceneId.optional()});

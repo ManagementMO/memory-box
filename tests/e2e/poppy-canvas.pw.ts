@@ -1,5 +1,8 @@
 import {expect,test as base} from "@playwright/test";
-import {browserEnabled,cameraState,WorldFixture} from "./helpers/open-world-fixture";
+import {browserEnabled,cameraState,sameOrigin,WorldFixture,writesEnabled} from "./helpers/open-world-fixture";
+import type {Memory,Pixel} from "../../src/lib/types";
+import sharp from "sharp";
+import {mkdir} from "node:fs/promises";
 
 const test=base.extend<{world:WorldFixture}>({world:async({page:_page},use,info)=>{const fixture=new WorldFixture(info);try{await use(fixture);}finally{await fixture.cleanup();}}});
 test.skip(!browserEnabled,"Enable disposable real browser identities with MB_E2E_OPEN_WORLD=1.");
@@ -92,4 +95,132 @@ test("a parked reply returns to its source with its draft and usable writing spa
   await page.getByRole("button",{name:"Choose its place",exact:true}).click();
   await page.getByRole("button",{name:"Cancel placement",exact:true}).click();
   await expect(writer).toHaveValue("Keep this reply while I wander elsewhere.");
+});
+
+test("two visitors discover an authored build, paint and leave linked notes and photos in place",async({page,browser,baseURL,world},info)=>{
+  test.skip(!writesEnabled,"Real invitation, upload and paint transactions require MB_E2E_WRITE=1.");
+  test.setTimeout(120_000);
+  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
+  await world.connect(page);
+  await page.getByRole("button",{name:"Build together",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Start a build here",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Start a build here",exact:true}).click();
+  await expect(page.getByRole("checkbox",{name:/Invite people to build here/})).toBeChecked();
+  expect(await page.getByRole("checkbox",{name:/Invite people to build here/}).evaluate(element=>getComputedStyle(element).appearance)).not.toBe("none");
+  const title=`Goose wardrobe ${world.runId.slice(0,8)}`;
+  await page.locator(".composer-title input").fill(title);
+  await page.getByRole("textbox",{name:/What can people help make/}).fill("Give this goose the worst interview outfit. Add a tiny briefcase or a wildly bad tie.");
+  if(process.env.MB_E2E_REVIEW==="1"){
+    await mkdir(".impeccable/review",{recursive:true});
+    await page.locator(".build-invitation-toggle").screenshot({path:`.impeccable/review/invitation-toggle-${info.project.name}.png`});
+  }
+  const publish=async(visitor:typeof page)=>{
+    await visitor.getByRole("button",{name:"Choose its place",exact:true}).click();
+    const accepted=visitor.waitForResponse(r=>new URL(r.url()).pathname==="/api/memories"&&r.request().method()==="POST");
+    await visitor.getByRole("button",{name:"Leave it here",exact:true}).click();
+    const response=await accepted;expect(response.status()).toBe(201);return await response.json() as Memory;
+  };
+  const invitation=await publish(page);expect(invitation.isBuildInvitation).toBe(true);
+  await page.getByRole("button",{name:"Join this build",exact:true}).click();
+  await expect(page.locator(".world-story-overlay .build-workbench")).toHaveAttribute("data-build-id",invitation.id);
+  const other=await world.visitor(browser,baseURL!,page,visitor=>visitor.on("pageerror",error=>errors.push(error.message)));
+  let capturedTogether=false;
+  const join=async()=>{
+    await other.getByRole("button",{name:"Build together",exact:true}).click();
+    if(process.env.MB_E2E_REVIEW==="1"&&!capturedTogether){
+      await mkdir(".impeccable/review",{recursive:true});capturedTogether=true;
+      await other.screenshot({path:`.impeccable/review/together-${info.project.name}.png`,fullPage:true});
+    }
+    await other.locator(`.open-build-list [data-source-id="${invitation.id}"]`).click();
+    await expect(other.locator(".world-story-overlay .build-workbench")).toHaveAttribute("data-build-id",invitation.id);
+  };
+  await join();
+  if(process.env.MB_E2E_REVIEW==="1"){
+    await mkdir(".impeccable/review",{recursive:true});
+    await other.screenshot({path:`.impeccable/review/open-build-${info.project.name}.png`,fullPage:true});
+  }
+  const foreign=await sameOrigin(other,`/api/memories/${invitation.id}`,{expectedVersion:1,title,body:invitation.body,isBuildInvitation:false},"PATCH");
+  expect(foreign.status).toBe(403);
+  const legacy=await sameOrigin<Memory>(page,`/api/memories/${invitation.id}`,{expectedVersion:1,title,body:invitation.body+" Anyone can add to it."},"PATCH");
+  expect(legacy.status).toBe(200);expect(legacy.body.isBuildInvitation).toBe(true);
+  const blank=await sameOrigin(page,`/api/memories/${invitation.id}`,{expectedVersion:legacy.body.version,title,body:" "},"PATCH");
+  expect(blank.status).toBe(400);
+  await expect(other.locator(".build-request")).toHaveText(legacy.body.body);
+  await other.getByRole("button",{name:"Paint here",exact:true}).click();
+  await expect(other.getByRole("button",{name:"Back to build",exact:true})).toBeVisible();
+  const point=await other.locator(".world-board").evaluate(element=>{
+    const rect=element.getBoundingClientRect();
+    for(const [fx,fy] of [[.6,.24],[.45,.22],[.7,.3],[.3,.28]]){
+      const x=rect.x+rect.width*fx,y=rect.y+rect.height*fy;const hit=document.elementFromPoint(x,y);
+      if(hit&&element.contains(hit)&&!hit.closest(".canvas-overlay,button,input,textarea"))return{x,y};
+    }
+    throw new Error("No visible canvas for a build pixel.");
+  });
+  await other.mouse.move(point.x,point.y);await other.mouse.down();await other.mouse.move(point.x+8,point.y);await other.mouse.up();
+  const painted=other.waitForResponse(r=>new URL(r.url()).pathname==="/api/paint"&&r.request().method()==="POST");
+  await other.getByRole("button",{name:"Share preview pixels",exact:true}).click();
+  const paintResponse=await painted;expect(paintResponse.status()).toBe(200);
+  const paintResult=await paintResponse.json();
+  const pixels=paintResult.pixels as Pixel[];expect(pixels.length).toBeGreaterThan(0);
+  await expect.poll(async()=>Number(await page.locator(".world-board").getAttribute("data-world-revision"))).toBeGreaterThanOrEqual(paintResult.revision);
+  // Both visitors use the real camera tools to see the same painted area. A
+  // phone's anchored source strip can otherwise leave this cell offscreen.
+  await page.getByRole("button",{name:"Build together",exact:true}).click();
+  await page.getByRole("button",{name:"Visit a live painter",exact:true}).click();
+  const cell=pixels[0],rgb=[1,3,5].map(offset=>parseInt(cell.color.slice(offset,offset+2),16));
+  await expect.poll(()=>page.locator(".world-pixels").evaluate((element,cell)=>{
+    const canvas=element as HTMLCanvasElement,board=canvas.closest(".world-board")! as HTMLElement,z=Number(board.dataset.cameraZoom);
+    const x=(Number(board.dataset.cameraX)+(cell.x+.5)*6*z)*canvas.width/canvas.clientWidth,y=(Number(board.dataset.cameraY)+(cell.y+.5)*6*z)*canvas.height/canvas.clientHeight;
+    return [...canvas.getContext("2d")!.getImageData(Math.floor(x),Math.floor(y),1,1).data].slice(0,3);
+  },cell)).toEqual(rgb);
+  await other.getByRole("button",{name:"Back to build",exact:true}).click();
+  await other.getByRole("button",{name:"Add a note",exact:true}).click();
+  const responseText="A briefcase full of stale bread. This goose means business.";
+  await other.locator(".composer-writing textarea").fill(responseText);
+  await expect.poll(async()=>other.locator(".world-story-overlay > .context-panel").evaluate(element=>{
+    const panel=element.getBoundingClientRect(),board=element.closest(".world-board")!.getBoundingClientRect();
+    return panel.bottom-board.bottom;
+  })).toBeLessThanOrEqual(-70);
+  if(process.env.MB_E2E_REVIEW==="1")await other.screenshot({path:`.impeccable/review/build-response-${info.project.name}.png`,fullPage:true});
+  await other.getByRole("button",{name:"Close panel",exact:true}).click();
+  await join();await other.getByRole("button",{name:"Add a note",exact:true}).click();
+  await expect(other.locator(".composer-writing textarea")).toHaveValue(responseText);
+  const note=await publish(other);expect(note.inspiredBy).toBe(invitation.id);expect(note.authorId).not.toBe(invitation.authorId);
+  await expect(page.locator(`.memory-card[data-memory-id="${note.id}"]`)).toHaveCount(1);
+  await join();await other.locator(".build-workbench").getByRole("button",{name:"Leave a photo",exact:true}).click();
+  const image=await sharp({create:{width:24,height:24,channels:3,background:"#DCC7F0"}}).png().toBuffer();
+  await other.getByLabel("Choose image",{exact:true}).setInputFiles({name:"fixture-briefcase.png",mimeType:"image/png",buffer:image});
+  await other.locator(".composer-writing textarea").fill("A little lilac briefcase for the outfit.");
+  const photo=await publish(other);expect(photo.inspiredBy).toBe(invitation.id);expect(photo.type).toBe("image");
+  await expect(page.locator(`.memory-card[data-memory-id="${photo.id}"] img`)).toBeAttached();
+  await join();
+  if(info.project.name==="mobile"){
+    await other.setViewportSize({width:320,height:640});
+    expect(await other.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+    const geometry=()=>other.locator(".build-workbench").evaluate(element=>{
+      const button=element.querySelector("button")!.getBoundingClientRect();
+      const panel=element.closest(".context-panel")!.getBoundingClientRect();
+      const source=document.querySelector(".memory-card.is-selected")!.getBoundingClientRect();
+      const dock=document.querySelector('.canvas-dock')!.getBoundingClientRect();
+      return {target:button.height,sourceBottom:source.bottom,panelTop:panel.top,panelBottom:panel.bottom,dockTop:dock.top};
+    });
+    // ResizeObserver and the explicit source camera settle after setViewportSize.
+    await expect.poll(async()=>{const g=await geometry();return g.sourceBottom-g.panelTop;}).toBeLessThanOrEqual(0);
+    await expect.poll(async()=>{const g=await geometry();return g.panelBottom-g.dockTop;}).toBeLessThanOrEqual(0);
+    expect((await geometry()).target).toBeGreaterThanOrEqual(44);
+    if(process.env.MB_E2E_REVIEW==="1")await other.screenshot({path:".impeccable/review/open-build-mobile-320.png",fullPage:true});
+  }
+  await page.getByRole("button",{name:"Build together",exact:true}).click();
+  await page.locator(`.open-build-list [data-source-id="${invitation.id}"]`).click();
+  await page.getByRole("button",{name:"Read original",exact:true}).click();
+  await page.getByRole("button",{name:"Edit memory",exact:true}).click();
+  await expect(page.getByRole("checkbox",{name:/Invite people to build here/})).toBeChecked();
+  await page.getByRole("checkbox",{name:/Invite people to build here/}).uncheck();
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(other.locator(".build-workbench")).toContainText("This invitation is closed.");
+  await expect(other.locator(".build-workbench").getByRole("button",{name:"Paint here",exact:true})).toHaveCount(0);
+  const removed=await sameOrigin(page,`/api/memories/${invitation.id}`,undefined,"DELETE");expect(removed.status).toBe(200);
+  await expect(other.locator(".build-workbench")).toContainText("This invitation is no longer available.");
+  const current=await world.snapshot(other);expect(current.memories.some(m=>m.id===note.id)).toBe(true);expect(current.memories.some(m=>m.id===photo.id)).toBe(true);
+  expect(errors).toEqual([]);
 });

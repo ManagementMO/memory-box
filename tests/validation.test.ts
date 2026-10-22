@@ -1,8 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { newMemoryInput, paintInput, reportInput, uploadInput } from "../src/lib/server/validation";
+import { editMemoryInput, newMemoryInput, paintInput, reportInput, uploadInput } from "../src/lib/server/validation";
 
 const id = "53219ac5-08c8-4461-a448-b7e688571fa7";
 describe("public contribution boundaries", () => {
+  it("keeps invitation intent through create and edit without defaulting legacy edits", () => {
+    const base = {clientId:id,type:"text",body:"Give this goose an interview outfit.",color:"#fff3bf",x:400,y:300,sceneId:"mixtape"};
+    expect(newMemoryInput.parse({...base,isBuildInvitation:true})).toHaveProperty("isBuildInvitation",true);
+    expect(newMemoryInput.parse({...base,isBuildInvitation:false})).toHaveProperty("isBuildInvitation",false);
+    expect(newMemoryInput.parse(base)).not.toHaveProperty("isBuildInvitation");
+    const edit = {expectedVersion:1,title:"Goose wardrobe",body:base.body};
+    expect(editMemoryInput.parse({...edit,isBuildInvitation:false})).toHaveProperty("isBuildInvitation",false);
+    expect(editMemoryInput.parse(edit)).not.toHaveProperty("isBuildInvitation");
+    expect(newMemoryInput.safeParse({...base,isBuildInvitation:"true"}).success).toBe(false);
+    expect(editMemoryInput.safeParse({...edit,isBuildInvitation:null}).success).toBe(false);
+  });
+  it("requires an authored invitation even for photos while keeping normal captionless photos valid", () => {
+    const photo = {clientId:id,type:"image",body:"  ",assetId:id,color:"#fff3bf",x:400,y:300,sceneId:"mixtape"};
+    expect(newMemoryInput.safeParse(photo).success).toBe(true);
+    expect(newMemoryInput.safeParse({...photo,isBuildInvitation:true}).success).toBe(false);
+    expect(editMemoryInput.safeParse({expectedVersion:1,title:"Help paint",body:" ",isBuildInvitation:true}).success).toBe(false);
+    expect(editMemoryInput.safeParse({expectedVersion:1,title:"",body:"",isBuildInvitation:false}).success).toBe(true);
+  });
   it("rejects script links rather than treating them as ordinary memories", () => {
     expect(newMemoryInput.safeParse({clientId:id,type:"link",body:"A link",url:"javascript:alert(1)",color:"#354fb2",x:400,y:300,sceneId:"mixtape"}).success).toBe(false);
   });

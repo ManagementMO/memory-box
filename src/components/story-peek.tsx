@@ -1,8 +1,8 @@
-import { ArrowRight, StickyNote, Plus, X } from "./pixel-icons";
+import { ArrowRight, StickyNote, Plus, UsersRound, X } from "./pixel-icons";
 import { useEffect, useRef, type CSSProperties } from "react";
 import type { Memory } from "@/lib/types";
 
-export function StoryPeek({memory,onRead,onBuild,onNext,onClose}:{memory:Memory;onRead:()=>void;onBuild:()=>void;onNext:()=>void;onClose:()=>void}) {
+export function StoryPeek({memory,onRead,onBuild,onJoin,onNext,onClose}:{memory:Memory;onRead:()=>void;onBuild:()=>void;onJoin:()=>void;onNext:()=>void;onClose:()=>void}) {
   const element=useRef<HTMLElement>(null);
   useEffect(()=>{element.current?.focus({preventScroll:true});},[memory.id]);
   return <section ref={element} tabIndex={-1} className="story-peek" aria-label="Story preview" data-story-id={memory.id} style={{"--peek-paper":memory.color} as CSSProperties}>
@@ -12,7 +12,7 @@ export function StoryPeek({memory,onRead,onBuild,onNext,onClose}:{memory:Memory;
     {memory.body?<p className="story-peek-copy">{memory.body}</p>:null}
     <div className="story-peek-actions">
       <button type="button" className="button button-secondary" onClick={onRead}><StickyNote size={15}/>Read</button>
-      <button type="button" className="button button-primary" onClick={onBuild}><Plus size={15}/>Build on</button>
+      <button type="button" className="button button-primary" onClick={memory.isBuildInvitation ? onJoin : onBuild}>{memory.isBuildInvitation?<UsersRound size={15}/>:<Plus size={15}/>} {memory.isBuildInvitation?"Join this build":"Build on"}</button>
       <button type="button" className="button button-secondary" onClick={onNext} aria-label="Wander to another story"><ArrowRight size={16}/></button>
     </div>
   </section>;

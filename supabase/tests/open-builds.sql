@@ -1,0 +1,57 @@
+-- Rollback-only verification. No guests, memories, jobs or activity survive.
+begin;
+do $test$
+declare
+ actor uuid:=gen_random_uuid(); stranger uuid:=gen_random_uuid();
+ input jsonb; saved jsonb; changed jsonb; ordinary jsonb; child jsonb;
+ blocked boolean; before_revision bigint; before_jobs integer;
+begin
+ insert into auth.users(id) values(actor),(stranger);
+ input:=jsonb_build_object('clientId',gen_random_uuid(),'type','text','title','Wardrobe','body','Give this goose an interview outfit.','color','#FFF3BF','x',800,'y',600,'sceneId','mixtape','isBuildInvitation',true);
+ saved:=public.mb_create_memory(actor,input);
+ assert saved->>'isBuildInvitation'='true','invitation persists';
+ assert public.mb_create_memory(actor,input)=saved,'exact retry keeps identity and invitation';
+ blocked:=false;
+ begin perform public.mb_create_memory(actor,input||'{"isBuildInvitation":false}');
+ exception when unique_violation then blocked:=true;end;
+ assert blocked,'same request ID with different intent conflicts';
+ assert exists(select 1 from jsonb_array_elements(public.mb_snapshot()->'memories') m where m->>'id'=saved->>'id' and m->>'isBuildInvitation'='true'),'snapshot includes actual invitation';
+ changed:=public.mb_update_memory(actor,(saved->>'id')::uuid,1,'{"title":"Wardrobe revised"}');
+ assert changed->>'isBuildInvitation'='true' and changed->>'version'='2','legacy edit preserves intent';
+ blocked:=false;
+ begin perform public.mb_update_memory(stranger,(saved->>'id')::uuid,2,'{"isBuildInvitation":false}');
+ exception when insufficient_privilege then blocked:=true;end;
+ assert blocked,'foreign author cannot close invitation';
+ blocked:=false;
+ begin perform public.mb_update_memory(actor,(saved->>'id')::uuid,1,'{"isBuildInvitation":false}');
+ exception when sqlstate 'PT409' then blocked:=true;end;
+ assert blocked,'stale closure does not overwrite current source';
+ blocked:=false;
+ begin perform public.mb_update_memory(actor,(saved->>'id')::uuid,2,'{"body":"  "}');
+ exception when check_violation then blocked:=true;end;
+ assert blocked,'legacy edit cannot strip invitation words';
+ child:=public.mb_create_memory(stranger,jsonb_build_object('clientId',gen_random_uuid(),'type','text','body','A tiny briefcase.','color','#FFF3BF','x',1100,'y',600,'sceneId','mixtape','inspiredBy',saved->>'id'));
+ changed:=public.mb_update_memory(actor,(saved->>'id')::uuid,2,'{"isBuildInvitation":false}');
+ assert changed->>'isBuildInvitation'='false' and changed->>'version'='3','flag-only closure creates a new source version';
+ assert child->>'authorId'=stranger::text and child->>'inspiredBy'=saved->>'id','reply keeps its author and original';
+ select revision into before_revision from public.worlds where id='commons';
+ select count(*) into before_jobs from public.index_jobs where memory_id=(saved->>'id')::uuid;
+ changed:=public.mb_update_memory(actor,(saved->>'id')::uuid,3,'{"isBuildInvitation":false}');
+ assert changed->>'version'='3','repeated closure is a normalized no-op';
+ assert (select revision=before_revision from public.worlds where id='commons'),'no-op adds no revision';
+ assert (select count(*)=before_jobs from public.index_jobs where memory_id=(saved->>'id')::uuid),'no-op adds no index job';
+ ordinary:=public.mb_create_memory(actor,jsonb_build_object('clientId',gen_random_uuid(),'type','text','body','Just a memory.','color','#FFF3BF','x',800,'y',800,'sceneId','mixtape'));
+ assert ordinary->>'isBuildInvitation'='false','ordinary and older clients default false';
+ changed:=public.mb_update_memory(actor,(ordinary->>'id')::uuid,1,'{"isBuildInvitation":true}');
+ perform public.mb_delete_memory(actor,(ordinary->>'id')::uuid);
+ assert exists(select 1 from public.memories where id=(ordinary->>'id')::uuid and visibility='deleted' and body=''),'an open invitation can be withdrawn and its words erased';
+ perform public.mb_delete_memory(actor,(saved->>'id')::uuid);
+ assert exists(select 1 from public.memories where id=(child->>'id')::uuid and visibility='published'),'source removal preserves other authors responses';
+ assert not exists(select 1 from jsonb_array_elements(public.mb_snapshot()->'memories') m where m->>'id'=saved->>'id'),'withdrawn source leaves current discovery';
+ assert not has_function_privilege('anon','public.mb_create_memory(uuid,jsonb)','EXECUTE'),'anon cannot spoof an actor';
+ assert not has_function_privilege('authenticated','public.mb_update_memory(uuid,uuid,integer,jsonb)','EXECUTE'),'authenticated cannot bypass API ownership';
+ assert has_function_privilege('service_role','public.mb_create_memory(uuid,jsonb)','EXECUTE'),'server retains create capability';
+ assert not (select prosecdef from pg_proc where oid='public.mb_update_memory(uuid,uuid,integer,jsonb)'::regprocedure),'mutation remains security invoker';
+ assert (select relrowsecurity from pg_class where oid='public.memories'::regclass),'RLS remains enabled';
+end $test$;
+rollback;

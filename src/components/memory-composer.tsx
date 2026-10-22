@@ -9,6 +9,7 @@ import { originalLabel } from "@/lib/client/memory-presentation";
 
 export interface MemoryDraft {
   clientId: string; type: MemoryType; title: string; body: string; url: string; color: string;
+  isBuildInvitation?: boolean;
   file: File | null; previewUrl: string | null; assetId?: string; inspiredBy?: string; paintOperationId?: string; editId?: string; expectedVersion?: number;
 }
 export function newDraft(inspiredBy?: string, paintOperationId?: string): MemoryDraft {
@@ -30,7 +31,7 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState<{ draftId: string; index: number } | null>(null);
-  const canShowPrompt = draft.type === "text" && !draft.editId && !draft.inspiredBy && !parent && !draft.title.trim() && !draft.body.trim();
+  const canShowPrompt = draft.type === "text" && !draft.isBuildInvitation && !draft.editId && !draft.inspiredBy && !parent && !draft.title.trim() && !draft.body.trim();
   const activePrompt = prompt?.draftId === draft.clientId ? prompt.index : null;
   const change = (next: Partial<MemoryDraft>) => onChange({ ...draft, ...next });
   const chooseFile = (file: File | undefined) => {
@@ -50,9 +51,10 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
         <input ref={fileInput} type="file" className="visually-hidden" accept="image/png,image/jpeg,image/webp" aria-label="Choose image" onChange={(event) => chooseFile(event.target.files?.[0])} disabled={!!draft.editId || !!busy} />
         {draft.file ? <span className="upload-filename">{draft.file.name}</span> : null}
       </div> : null}
-      <label className="field composer-writing">{draft.type === "text" ? (parent ? "What did it bring to mind?" : "Your memory or idea") : "The story behind it"}<textarea disabled={!!busy} value={draft.body} onChange={(event) => change({ body: event.target.value })} maxLength={2000} rows={draft.type === "text" ? 5 : 3} placeholder={parent ? "Add your response…" : draft.type === "image" ? "Add a caption…" : "Write something…"} /><span className="field-counter" aria-hidden="true">{draft.body.length}/2000</span></label>
+      <label className="field composer-writing">{draft.isBuildInvitation ? "What can people help make?" : draft.type === "text" ? (parent ? "What did it bring to mind?" : "Your memory or idea") : "The story behind it"}<textarea disabled={!!busy} value={draft.body} onChange={(event) => change({ body: event.target.value })} maxLength={2000} rows={draft.type === "text" ? 5 : 3} placeholder={draft.isBuildInvitation ? "Give this goose an interview outfit…" : parent ? "Add your response…" : draft.type === "image" ? "Add a caption…" : "Write something…"} /><span className="field-counter" aria-hidden="true">{draft.body.length}/2000</span></label>
       <label className="field composer-title">{draft.type === "text" ? "A title, if you want" : "A short title"}<input disabled={!!busy} value={draft.title} onChange={(event) => change({ title: event.target.value })} maxLength={80} placeholder="Give this a name" /></label>
     </div>
+    <label className="build-invitation-toggle"><input type="checkbox" checked={!!draft.isBuildInvitation} onChange={event=>change({isBuildInvitation:event.target.checked})} disabled={!!busy} /><span>Invite people to build here{draft.isBuildInvitation?<small>Listed in Together. Uncheck to close the invitation.</small>:null}</span></label>
     {draft.type === "text" ? <div className="paper-picker"><span>Paper</span><div>{PAPER_COLORS.map((color, index) => <button type="button" disabled={!!busy} key={color} className="paper-sample" style={{ "--sample-paper": color } as CSSProperties} aria-pressed={draft.color === color} aria-label={`${PAPER_NAMES[index]} paper`} onClick={() => change({ color })}><span className="paper-sample-sheet" aria-hidden="true" />{draft.color === color ? <Check size={13} /> : null}</button>)}</div></div> : null}
     {canShowPrompt ? <div className={`composer-prompt${activePrompt !== null ? " is-open" : ""}`}>
       {activePrompt !== null ? <div className="composer-prompt-copy"><span>Prompt</span><p aria-live="polite">{WRITING_PROMPTS[activePrompt]}</p></div> : null}

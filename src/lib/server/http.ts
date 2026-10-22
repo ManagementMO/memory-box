@@ -65,6 +65,7 @@ export function errorResponse(error: unknown) {
     fields: error.issues.map(issue => issue.path.join("."))
   }, 400);
   const message = error instanceof Error ? error.message : "";
+  if (message.includes("build_invitation_has_words")) return json({error:"Say what people can help make, or close the invitation before removing its words.",code:"invalid_input"},400);
   if (message === "ACCOUNT_SUSPENDED") return json({error: "This session cannot contribute right now.", code: "session_suspended"}, 403);
   if (/budget|rate.limit|too many|cooldown/i.test(message)) {
     return new Response(JSON.stringify({error: "A little pause helps everyone share the space. Try again shortly.", code: "rate_limited"}), {
