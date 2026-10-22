@@ -23,15 +23,29 @@ Build on reuses the controlled text/photo/link composer beside its actual source
 
 Only originals newly received or changed after the initial snapshot receive an arrival outline, limited to 12 at once for 1800ms. Initial content does not animate; reduced motion uses a static outline. Real cursors and painting keep their existing separate canvas layers. Preserve the white/pastel pixel materials, compact chrome and authored positions without fabricated participants, stories, activity or relationships. This extension adds no rendering or motion library and no database migration.
 
+## Open builds
+
+Open builds reuse authored text, photos and links within the existing white/pastel pixel materials. The optional native checkbox, “Invite people to build here”, sits below the writing artifact inside a label with a 44px minimum height. Selecting it changes the writing prompt to ask what people can help make and shows the Together/closure helper. Together's “Start a build here” opens that same controlled composer with the invitation selected; the existing placement confirmation publishes it.
+
+Together shows actual current invitations, newest first, before the preset patches. A live-painter shortcut appears only when a live painter exists. Canvas invitations carry a small lilac “Open build” pixel badge, and result metadata identifies them as open builds. Previews and full readers offer “Join this build” for invitations while ordinary originals retain Build on.
+
+Joining opens a compact workbench anchored to the actual original. It shows the source label, author, request and reference photo when present, with a full-width butter Paint here action, secondary note/photo actions, and Read original, Meet here and Other builds links. Pixelify headings and labels, readable body type, lilac surfaces and existing stepped buttons extend the incumbent controls. On phones at widths up to 700px, the floating workbench and reply sheets reserve 82px for the dock, retain the source above them, scroll within the existing 60dvh/440px bound and keep mobile actions at least 44px tall.
+
+Paint uses the real shared pixel plane and existing preview, save, cooldown and undo behavior, with a compact Back to build action. Each accepted paint save captures its actual build source; a later attached memory uses that saved source while it still exists, rather than whichever build is currently open. Notes and photos reuse the controlled source-linked composer and explicit stored build-on relationships with their own authorship. Joining indicates navigation to tools, without implying membership, completion or contributor counts.
+
+A closed invitation shows its closed status and can still open the original. A removed source shows that it is unavailable. Both offer Other builds and leave the shared canvas and other authors' contributions intact; unavailable workbenches cannot start new responses. The extension adds no library, font, art asset or replacement design system.
+
 ## Sources
 
 Visual tokens: `src/app/compact-ui.css` owns the compact controls, on top of `toybox.css`, `globals.css`, `living-mosaic.css`, and `poppy-canvas.css`.
 
 Spatial materials, visible threads, story overlays and bounded arrival feedback: `src/app/spatial-mosaic.css`.
 
-Components: `canvas-dock.tsx`, `pixel-tool-icon.tsx`, `tool-button.tsx`, `box-mark.tsx`, `memory-card.tsx`, `story-peek.tsx`.
+Components: `canvas-dock.tsx`, `pixel-tool-icon.tsx`, `tool-button.tsx`, `box-mark.tsx`, `memory-card.tsx`, `story-peek.tsx`, `build-workbench.tsx`, and `memory-composer.tsx`.
 
 Spatial behavior: `src/components/world-canvas.tsx`, `src/components/memory-box-app.tsx`, `src/lib/client/story-neighborhood.ts`, `src/lib/client/canvas-levels.ts`, `src/lib/client/story-discovery.ts`, and `src/lib/client/memory-presentation.ts`.
+
+Open-build materials and discovery: `src/app/open-builds.css` extends the compact/spatial controls; `src/lib/client/build-invitations.ts` selects actual current invitations. `src/components/memory-box-app.tsx` owns the anchored workbench, existing contribution flows and saved-paint source, while `src/lib/client/story-neighborhood.ts` owns the shared mobile dock clearance.
 
 Assets: `public/favicon.svg`, `public/cursors/*.svg` and self-hosted fonts.
 
@@ -42,3 +56,5 @@ Research, reference comparisons, tradeoffs and the motion contract: [Pixel toybo
 Creation-surface research and motion decisions: [Creative kit research](../docs/research/2026-10-22-creative-kit.md) and [implementation contract](../docs/specs/2026-10-22-creative-kit.md).
 
 Living mosaic contract and implementation plan: [Living mosaic discovery](../docs/superpowers/specs/2026-10-22-living-mosaic-design.md) and [implementation plan](../docs/superpowers/plans/2026-10-22-living-mosaic.md).
+
+Open-build direction contract: [Open builds on the shared canvas](../docs/superpowers/specs/2026-10-22-open-builds-design.md).
