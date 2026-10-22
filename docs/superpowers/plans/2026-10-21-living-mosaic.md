@@ -32,33 +32,35 @@
 
 Files: new `src/lib/client/presence-state.ts`, `use-presence.ts`, focused unit tests, and narrow `world:commons:presence` broadcast migration.
 
-- [ ] Validate bounded peer payloads and stale membership with focused tests.
-- [ ] Implement throttled broadcasts, membership heartbeat, tab-scoped identities and cleanup.
-- [ ] Confirm private cursor channel cannot send `world:commons` revision notices.
+- [x] Validate bounded peer payloads and stale membership with focused tests.
+- [x] Implement throttled broadcasts, membership heartbeat, tab-scoped identities and cleanup.
+- [x] Confirm private cursor channel cannot send `world:commons` revision notices.
 
 ### Task 2: Occupied mosaic and spatial navigation
 
-Files: `world-canvas.tsx`, geometry helpers/tests, `memory-card.tsx`, `globals.css`.
+Files: `world-canvas.tsx`, geometry helpers/tests, `memory-card.tsx`, `living-mosaic.css`.
 
-- [ ] Frame actual occupied content, preserve all gestures, and animate programmatic moves with reduced-motion support.
-- [ ] Render screen-space peer cursors and translucent remote previews without persisting them.
-- [ ] Retain paper/photos at far scale; remove category signs and pin-only archive presentation.
-- [ ] Make desktop floating readers and mobile bottom sheets preserve context.
+- [x] Frame actual occupied content, preserve all gestures, and animate programmatic moves with reduced-motion support.
+- [x] Render screen-space peer cursors and translucent remote previews without persisting them.
+- [x] Retain paper/photos at far scale; remove category signs and pin-only archive presentation.
+- [x] Make desktop floating readers and mobile bottom sheets preserve context.
 
 ### Task 3: Chaotic collaborative starter world
 
 Files: new `living-world.ts`, original `public/starter-world/*` illustrations, idempotent seed script and tests.
 
-- [ ] Add varied fictional originals, explicit responses, absurd editable pixel landmarks and an unfinished train.
-- [ ] Review and run the additive import, preserving occupied cells and all existing originals.
-- [ ] Verify repeat import produces no changes; expose honest starter counts.
+- [x] Add varied fictional originals, explicit responses, absurd editable pixel landmarks and an unfinished train.
+- [x] Review and run the additive import, preserving occupied cells and all existing originals.
+- [x] Verify repeat import produces no changes; expose honest starter counts.
 
 ### Task 4: Product integration and wandering
 
 Files: `memory-box-app.tsx`, new discovery helper/tests, contribution styles, README and release ledger.
 
-- [ ] Open on the mosaic with Wander, Build together, Paint, note/photo actions and secondary Find/Ask.
-- [ ] Wire real presence roster, peer visits and actual activity signals; no simulated visitors.
-- [ ] Preserve uploads, placement, editing, build-on, search results and source return.
-- [ ] Test desktop and mobile plus two isolated sessions: cursor movement, paint persistence, note/photo and build-on arrival, wandering and grounded search.
-- [ ] Run unit tests, typecheck, production build and review. Apply required narrow migrations, publish the verified app and recheck live behavior.
+- [x] Open on the mosaic with Wander, Build together, Paint, note/photo actions and secondary Find/Ask.
+- [x] Wire real presence roster, peer visits and actual activity signals; no simulated visitors.
+- [x] Preserve uploads, placement, editing, build-on, search results and source return.
+- [x] Test desktop and mobile plus two isolated sessions: cursor movement, paint persistence, note/photo and build-on arrival, wandering and grounded search.
+- [x] Run unit tests, typecheck, production build and review. Apply required narrow migrations, publish the verified app and recheck live behavior.
+
+Release: application commit `7ffc22177257d03e48cbe714fe35ce4f8ca1a0a8`, production deployment `dpl_Hbyzhzmd4h3pa5o2Yd1Lb4sZzrNm`. See the build ledger for import, CI and live verification evidence. Semantic indexing respects its normal daily allowance; 82/94 fragments were ready at handoff, with 12 queued and immediate authored-word search available for all originals.
