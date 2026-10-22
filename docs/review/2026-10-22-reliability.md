@@ -41,3 +41,22 @@ Apply the DB migration before deploying the worker, and recheck that no final-at
 Mobile verification uses Chromium emulation, not physical Safari devices. These checks do not prove r/place-scale traffic capacity, universal answer relevance, or absence of every possible defect. The existing daily inference cap and historical indexing backlog remain explicit operational limits.
 
 Reference checks used the [Supabase migration guide](https://supabase.com/docs/guides/deployment/database-migrations), [CLI reference](https://supabase.com/docs/reference/cli/supabase-db-push), current CLI help, installed Next documentation, and the [signed-upload URL contract](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl). Context7 was unavailable due to its monthly quota; official documentation and local package source were used instead.
+
+## Production verification and test admission
+
+PR #7 merged as `497752d0ff8be1a9be3e349d909a033df64d5536`. Both migrations are applied. Production deployment `dpl_2gZzGFiUxuPGQMvXgvsqAp2TKqfp` reached READY and the public alias served that commit; its GitHub CI also passed. Post-migration checks confirmed new completion is service-only, legacy completion is revoked, and guest staging-cleanup execution is denied. The existing two Auth advisor warnings were unchanged.
+
+The first public browser run passed seven cases, including real anonymous admission and two-person note/photo publication. Repeated fresh anonymous identities then exhausted the IP admission bucket and later cases failed at signup with 429; that run was stopped. This was not an application-operation failure, and the signup rate limit was not raised. See the [documented anonymous rate limit](https://supabase.com/docs/guides/auth/rate-limits).
+
+`MB_E2E_PROVISIONED=1` now explicitly selects an integration-test admission mode for `WorldFixture.connect()`: a confirmed disposable account is created through server-side Auth admin, tracked before login, and authenticated in the isolated browser using the real password token endpoint. Tokens remain inside the browser, the service key remains in the Node fixture, and teardown deletes each owned account. Traces stay disabled. This mode does **not** test public anonymous signup. Ordinary runs retain anonymous admission; `commons.pw.ts` deliberately tests admission separately.
+
+```sh
+TEST_BASE_URL=https://memory-box-commons.vercel.app \
+MB_E2E_OPEN_WORLD=1 MB_E2E_PROVISIONED=1 MB_E2E_WRITE=1 MB_E2E_AI=1 \
+npx playwright test tests/e2e/open-world.pw.ts tests/e2e/reliability.pw.ts \
+  --workers=1 --max-failures=1
+```
+
+**All 16 production application scenarios passed** on desktop and mobile: source/camera return, preview/pinch/cancel, independently authored notes and photo build-ons, cross-author edit rejection, live brush delivery and undo preserving another visitor's later pixel, actual model-backed Ask and citation return, delayed publication/edit, and committed-save recovery. The six save/failure cases use intercepted mutation responses; the multiplayer and model-backed cases use actual services. Test records are withdrawn and exact owned pixels restored without overwriting later visitors' work.
+
+Launch capacity remains a separate boundary: a concentrated cohort behind one campus/public IP may encounter anonymous-admission limits, and the current world renderer/snapshot transport has not been load-tested at r/place scale. The functional test mode does not claim to solve those capacity limits.
