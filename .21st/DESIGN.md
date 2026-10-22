@@ -15,7 +15,7 @@ Memory Box is a collaborative canvas containing shared pixels, authored notes an
 
 ## Living mosaic
 
-The 2026-10-22 extension makes discovery part of the actual mosaic. Papers, photos, image frames and body snippets keep their physical world sizes at every zoom; distance never replaces them with generic pins or screen-sized title tiles. The initial campus overview uses 0.4 zoom on phones and 0.45 on desktop while preserving the campus center. Whole patch, Wander and Up close change distance around the current place; Explore frames all occupied content.
+The 2026-10-22 extension makes discovery part of the actual mosaic. Papers, photos, image frames and body snippets keep their physical world sizes at every zoom; distance never replaces them with generic pins or screen-sized title tiles. The initial overview frames occupied places, keeping a nearby cluster readable when remote outliers would over-stretch the view. Whole patch, Wander and Up close change distance around the current place; Explore frames all occupied content.
 
 Wander selects real stored originals absent from its recent visit history when available, preferring non-starters within that unseen pool. It frames a nearby neighborhood and opens a compact spatial preview with Read, Build on and Next actions. Canvas clicks use the same preview. Read and search citations retain the full reader; returning to search restores the camera, results position and focus. Closing a preview restores its visible invoker or the Wander control.
 
@@ -35,6 +35,20 @@ Paint uses the real shared pixel plane and existing preview, save, cooldown and 
 
 A closed invitation shows its closed status and can still open the original. A removed source shows that it is unavailable. Both offer Other builds and leave the shared canvas and other authors' contributions intact; unavailable workbenches cannot start new responses. The extension adds no library, font, art asset or replacement design system.
 
+## Continuous world of places
+
+The atlas extends one continuous finite sparse plane, from -60000 to 59999 world units, within the existing white/pastel pixel identity. Places describe actual geographic occupancy. Existing landmarks appear only while nearby stored originals or pixels exist; occupied cells elsewhere take a factual name from an original or the pixel-only fallback. Each original or pixel belongs to one place. Surviving pixels keep a place visible after its last original is removed, and an empty world has no invented destinations.
+
+Geography is a faint layer beneath the authored pixels, papers and photos: irregular stepped pastel contours, fine dotted edges and restrained dotted travel trails. Small original pixel emblems identify places without becoming saved artwork. These geographic marks convey wayfinding, not build-on relationships. Place labels retain a readable screen size at world and neighborhood distances, declutter against one another and the controls, and hide up close or while reading, painting, placing or using a panel. The three existing distance controls keep the current place centered and preserve the actual materials.
+
+Explore opens the compact World map and frames the occupied world. A miniature shows actual shared pixels and paper/photo footprints, with a dashed lilac rectangle for the current viewport. Its base artwork redraws only when content or map size changes; camera updates use a separate transparent viewport canvas. The destination list is the keyboard/touch alternative to miniature travel, with wrapping Pixelify place names, stepped pastel emblems and factual original/open-build metadata. Pixel-only places say Pixel artwork. Visiting closes the map, frames the actual place and returns focus to the small World control.
+
+The World control uses an original map emblem, Pixelify label and the current place in readable body type on desktop. On phones it keeps only the emblem and World label in a compact 44px-high target at the left, clear of Meet here and presence at the right. The desktop map is 318px wide with a 185px miniature. At widths up to 700px, the map becomes a bounded sheet above the dock with an 82px bottom reservation, a maximum height of min(68dvh, 490px), and a 150px miniature. List rows are at least 56px high on mobile; Start a place and all mobile panel actions retain at least 44px targets. Preserve visible keyboard focus and the inherited reduced-motion camera behavior.
+
+Start a place uses the existing butter stepped primary action. It suggests nearby empty ground inside the write plane, frames it and opens the existing invitation composer without publishing. The visitor authors the name/request and explicitly chooses and confirms placement. A pristine empty unlinked draft may be replaced by that explicit action; drafts containing text, a URL, an image/file/preview, an edit, a build-on source or a saved-paint link resume instead. Staged paint returns to the paint tool to be added or cleared. Travel and discovery preserve parked drafts, authored positions and ownership.
+
+Wander gives occupied places a turn before a dense place dominates: it prefers unseen originals, community originals within that pool, and another eligible place before revisiting the current one. It opens an actual original through the existing spatial preview. The main pixel layer queries a cached sparse index for the visible region; temporary paint previews and real cursors retain their own redraw behavior. The pilot still receives full snapshots. This extension establishes no population-scale claim, new topic categories, fabricated activity, dependency, font or database migration.
+
 ## Sources
 
 Visual tokens: `src/app/compact-ui.css` owns the compact controls, on top of `toybox.css`, `globals.css`, `living-mosaic.css`, and `poppy-canvas.css`.
@@ -47,6 +61,8 @@ Spatial behavior: `src/components/world-canvas.tsx`, `src/components/memory-box-
 
 Open-build materials and discovery: `src/app/open-builds.css` extends the compact/spatial controls; `src/lib/client/build-invitations.ts` selects actual current invitations. `src/components/memory-box-app.tsx` owns the anchored workbench, existing contribution flows and saved-paint source, while `src/lib/client/story-neighborhood.ts` owns the shared mobile dock clearance.
 
+Continuous-world materials and controls: `src/app/world-atlas.css`, `src/components/world-geography.tsx` and `src/components/world-map.tsx` own the stepped geographic ground, distance labels, map emblem, bounded map panel, destination list and separate miniature/viewport canvases. `src/components/world-canvas.tsx` layers geography beneath authored materials and queries visible persisted pixels through `src/lib/client/spatial-index.ts`. `src/lib/client/world-atlas.ts` derives occupied places, open-ground suggestions and place-aware Wander choices. `src/components/memory-box-app.tsx` owns travel, focus return, draft/paint guards and the unpublished invitation flow. `src/lib/client/canvas-levels.ts` and `src/lib/world-bounds.ts` define the existing distance presets and finite write plane.
+
 Assets: `public/favicon.svg`, `public/cursors/*.svg` and self-hosted fonts.
 
 Creation materials: `paint-kit.tsx`, `memory-composer.tsx`, `playground.css`, and `composer-kit.css`. Draw/Stamps has named pigment tiles and accurate pixel previews; text is composed on the selected paper and photos share a frame with their captions. Keep optional prompts separate from authored content. Accepted saves alone receive bounded world-positioned confirmation; reduced motion uses a static check. The mobile drawing kit is shorter than the stamp browser so the user retains drawing space.
@@ -58,3 +74,5 @@ Creation-surface research and motion decisions: [Creative kit research](../docs/
 Living mosaic contract and implementation plan: [Living mosaic discovery](../docs/superpowers/specs/2026-10-22-living-mosaic-design.md) and [implementation plan](../docs/superpowers/plans/2026-10-22-living-mosaic.md).
 
 Open-build direction contract: [Open builds on the shared canvas](../docs/superpowers/specs/2026-10-22-open-builds-design.md).
+
+Continuous-world direction contract: [A continuous world of places](../docs/superpowers/specs/2026-10-22-world-atlas-design.md).
