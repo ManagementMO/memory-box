@@ -53,7 +53,7 @@ export function applyPaint(actorId: string, opId: string, cells: Pixel[], sceneI
 export const undoPaint = (actorId: string, operationId: string) => rpc<UndoAcceptance>("mb_undo_paint", { p_actor: actorId, p_operation_id: operationId });
 
 export const createMemory = (actorId: string, input: NewMemory) => rpc<Memory>("mb_create_memory", { p_actor: actorId, p_input: input });
-export type MemoryPatch = Partial<Pick<Memory, "title" | "body" | "url" | "color" | "x" | "y" | "sceneId">> & { assetId?: string };
+export type MemoryPatch = Partial<Pick<Memory, "title" | "body" | "url" | "color" | "x" | "y" | "sceneId" | "isBuildInvitation">> & { assetId?: string };
 export const updateMemory = (actorId: string, id: string, expectedVersion: number, patch: MemoryPatch) => rpc<Memory>("mb_update_memory", { p_actor: actorId, p_id: id, p_version: expectedVersion, p_patch: patch });
 export const deleteMemory = (actorId: string, id: string) => rpc<{ assetId: string | null }>("mb_delete_memory", { p_actor: actorId, p_id: id });
 

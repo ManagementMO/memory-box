@@ -53,6 +53,11 @@ describe("bounded JSON bodies",()=>{
 });
 
 describe("expected authorization failures",()=>{
+  it("explains a blank invitation rejected on an older client's edit",async()=>{
+    const response=errorResponse(new Error('new row for relation "memories" violates check constraint "build_invitation_has_words"'));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({error:"Say what people can help make, or close the invitation before removing its words.",code:"invalid_input"});
+  });
   it("returns forbidden for SQL profile rejection of a suspended actor",async()=>{
     const response=errorResponse(new Error("ACCOUNT_SUSPENDED"));
     expect(response.status).toBe(403);

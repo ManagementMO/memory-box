@@ -32,6 +32,7 @@ export interface Memory {
   version: number;
   indexStatus: IndexStatus;
   isSeed: boolean;
+  isBuildInvitation?: boolean;
 }
 export interface WorldEvent {
   id: string;
@@ -57,6 +58,7 @@ export interface WorldSnapshot {
   events: WorldEvent[];
 }
 export interface NewMemory {
+  isBuildInvitation?: boolean;
   clientId: string;
   type: MemoryType;
   title?: string;
