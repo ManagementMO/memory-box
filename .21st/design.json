@@ -12,7 +12,8 @@
     "tokens": [
       "src/app/globals.css",
       "src/app/poppy-canvas.css",
-      "src/app/toybox.css"
+      "src/app/toybox.css",
+      "src/app/compact-ui.css"
     ],
     "components": [
       "src/components/canvas-dock.tsx",
@@ -111,6 +112,11 @@
     ]
   },
   "decisions": [
+    {
+      "date": "2026-10-22",
+      "direction": "Compact pixel controls",
+      "reason": "User requested smaller non-canvas UI with the cute pixel style throughout. A 56px header, 344px dock and 316px desktop panels use plum ink, butter primary actions and lilac tabs. Short labels use Pixelify; longer text stays readable. Mobile targets remain at least 44px, sheets scroll, dock artwork motion is limited to 2px and 6%, and persistent gesture instructions are removed."
+    },
     {
       "date": "2026-10-22",
       "direction": "Pixel toybox",
