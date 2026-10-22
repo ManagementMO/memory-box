@@ -1,5 +1,6 @@
 /* Pixel toybox: authored objects, quiet paper, motion on interaction only. */
 .living-mosaic-app {
+  --world-height: calc(100dvh - 64px);
   --ink: #393044;
   --quiet: #75657c;
   --porcelain: #fffdf8;
@@ -17,14 +18,12 @@
 }
 
 /* Header: the little box is the signature; the working controls stay compact. */
-.living-mosaic-app .app-header { background: #fffefa; border-bottom: 1px solid #eee6ec; padding-inline: 24px; gap: 14px; }
+.living-mosaic-app .app-header { height: 64px; min-height: 64px; background: #fffefa; border-bottom: 1px solid #eee6ec; padding: 8px 20px; gap: 12px; }
 .living-mosaic-app .wordmark { font-size: 29px; color: #393044; gap: 9px; }
 .living-mosaic-app .brand-mark { width: 48px; height: 48px; overflow: visible; }
 .living-mosaic-app .box-mark { display: block; width: 100%; height: 100%; overflow: visible; }
 .box-treasures { transform-origin: 16px 10px; transition: transform 240ms var(--toy-spring); }
 .box-body { transform-origin: 16px 28px; transition: transform 240ms var(--toy-spring); }
-.living-mosaic-app .header-motto { background: #fff1c9; border-radius: 7px; padding: 7px 10px; color: #755a35; transform: rotate(-2deg); }
-.living-mosaic-app .campus-unofficial { color: #7e6443; }
 .living-mosaic-app .header-find { border: 1px solid #e9e0eb; border-radius: 14px; background: #fff; min-width: 208px; color: #74627e; padding: 10px 13px; gap: 10px; }
 .living-mosaic-app .header-find kbd { margin-left: auto; border-color: #e7deeb; border-radius: 5px; background: #faf6fc; }
 .living-mosaic-app .header-browse, .living-mosaic-app .profile-button { border-radius: 14px; background: #f4eff8; color: #79628e; }
@@ -34,7 +33,30 @@
 .living-mosaic-app .button-primary:hover:not(:disabled) { background: linear-gradient(180deg, #7960b4, #6851aa); }
 .living-mosaic-app .button-primary:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 3px #45306440; }
 .living-mosaic-app .button-secondary { border-color: #e4d9e8; background: #fffcff; color: #665173; box-shadow: 0 2px 3px #49364f08; }
-.living-mosaic-app .leave-button { border-radius: 14px; gap: 8px; }
+.living-mosaic-app .leave-button {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: auto; min-width: 44px; min-height: 44px; padding: 4px 0 6px;
+  border: 0; border-radius: 7px; background: transparent; box-shadow: none;
+}
+.living-mosaic-app .leave-button > .leave-button-face {
+  position: relative; isolation: isolate; display: inline-flex; align-items: center;
+  min-height: 34px; gap: 6px; padding: 5px 11px 5px 6px;
+  color: #61496b; font: 600 16px/1 var(--font-display); white-space: nowrap;
+  filter: drop-shadow(0 2px 2px #795d4220);
+  transition: transform 120ms var(--toy-ease);
+}
+.living-mosaic-app .leave-button-face::before,
+.living-mosaic-app .leave-button-face::after {
+  content: ""; position: absolute; pointer-events: none;
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px), 0 4px, 2px 4px, 2px 2px, 4px 2px);
+}
+.living-mosaic-app .leave-button-face::before { z-index: -2; inset: 0; background: #d9bd85; }
+.living-mosaic-app .leave-button-face::after { z-index: -1; inset: 1px; background: linear-gradient(180deg, #fff7de, #ffebba); box-shadow: inset 0 -2px 0 #eddaa9; }
+.living-mosaic-app .leave-button-icon { display: grid; place-items: center; width: 22px; height: 22px; background: #e3d4f2; color: #72518f; clip-path: polygon(3px 0, calc(100% - 3px) 0, calc(100% - 3px) 3px, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 3px calc(100% - 3px), 0 calc(100% - 3px), 0 3px, 3px 3px); }
+.living-mosaic-app .leave-button-short { display: none; }
+.living-mosaic-app .leave-button:hover:not(:disabled) .leave-button-face::after { background: linear-gradient(180deg, #fff3ce, #ffe4a6); }
+.living-mosaic-app .leave-button:active { transform: none; }
+.living-mosaic-app .leave-button:active:not(:disabled) .leave-button-face { transform: translateY(1px); }
 .living-mosaic-app button:focus-visible { outline: 3px solid #8d6db9; outline-offset: 3px; }
 
 /* A stationary tray; only its six small objects respond to the pointer. */
@@ -159,13 +181,15 @@
   .living-mosaic-app .canvas-guidance { bottom: 125px; }
 }
 @media (max-width: 850px) {
-  .living-mosaic-app .header-find { min-width: 44px; width: 44px; padding: 10px; }
+  .living-mosaic-app .header-find { min-width: 44px; width: 44px; padding: 9px; }
 }
 @media (max-width: 700px) {
-  .living-mosaic-app .app-header { padding: 8px 11px; gap: 8px; }
-  .living-mosaic-app .wordmark { font-size: 24px; gap: 6px; }
-  .living-mosaic-app .brand-mark { width: 38px; height: 38px; }
-  .living-mosaic-app .header-find, .living-mosaic-app .leave-button { border-radius: 13px; }
+  .living-mosaic-app { --world-height: calc(100dvh - 60px); }
+  .living-mosaic-app .app-header { height: 60px; min-height: 60px; padding: 8px 10px; gap: 8px; }
+  .living-mosaic-app .wordmark { min-height: 44px; font-size: 20px; gap: 5px; }
+  .living-mosaic-app .brand-mark { width: 32px; height: 32px; }
+  .living-mosaic-app .header-find { border-radius: 13px; }
+  .living-mosaic-app .leave-button > .leave-button-face { padding-right: 8px; font-size: 15px; }
   .living-mosaic-app .canvas-dock { width: min(376px, calc(100% - 20px)); max-width: none; padding: 6px; gap: 1px; border-radius: 20px; bottom: max(12px, env(safe-area-inset-bottom)); }
   .living-mosaic-app .canvas-dock > button { flex: 1; width: 0; min-width: 44px; min-height: 65px; padding: 6px 0; gap: 6px; border-radius: 13px; font-size: 9px; }
   .living-mosaic-app .canvas-dock > button::before { left: calc(50% - 21px); right: auto; width: 42px; height: 38px; top: 4px; border-radius: 10px; }
@@ -193,6 +217,14 @@
   .living-mosaic-app .canvas-paint-bar .button, .living-mosaic-app .canvas-paint-bar .icon-button { width: auto; min-width: 44px; min-height: 44px; }
   .living-mosaic-app .canvas-paint-bar .brush-color-label, .living-mosaic-app .canvas-paint-bar input[type=color] { width: 44px; height: 44px; }
   .living-mosaic-app .field input, .living-mosaic-app .field textarea, .living-mosaic-app .field select { font-size: 16px; }
+}
+@media (max-width: 380px) {
+  .living-mosaic-app .leave-button-label { display: none; }
+  .living-mosaic-app .leave-button-short { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-mosaic-app .leave-button > .leave-button-face { transition: none; }
+  .living-mosaic-app .leave-button:active:not(:disabled) .leave-button-face { transform: none; }
 }
 @media (max-width: 350px) {
   .living-mosaic-app .wordmark { font-size: 22px; gap: 4px; }

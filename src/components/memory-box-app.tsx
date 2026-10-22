@@ -499,10 +499,11 @@ export function MemoryBoxApp() {
     <h1 className="visually-hidden">Memory Box canvas</h1>
     <header className="app-header">
       <button type="button" className="wordmark" aria-label="Memory Box, see the whole commons" disabled={!!busy} onClick={() => { closePanel(); setCommand((old) => ({ key: old.key + 1, type: "fit" })); }}><span className="brand-mark" aria-hidden="true"><BoxMark /></span>memorybox</button>
-      <span className="header-motto">{campusAvailable?<>Waterloo<span className="campus-unofficial">unofficial</span></>:"Commons"}</span>
       <button type="button" className="header-find" aria-label="Find a memory or ask the box" onClick={()=>{setPanel("search");setPending(null);setSelectedId(null);}} disabled={!world || !!busy}><Search size={17}/><span>Find / ask</span><kbd>/</kbd></button>
       <button type="button" className="header-browse icon-button" aria-label="Browse" onClick={()=>{setPanel("browse");setSelectedId(null);}} disabled={!world || !!busy}><List size={17}/></button>
-      <button type="button" className="button button-primary leave-button" aria-label="Leave something" onClick={() => draft ? resumeDraft() : startMemory()} disabled={!world || !!busy}><Plus size={17} /><span>Leave something</span></button>
+      <button type="button" className="leave-button" aria-label="Leave something" onClick={() => draft ? resumeDraft() : startMemory()} disabled={!world || !!busy}>
+        <span className="leave-button-face"><span className="leave-button-icon" aria-hidden="true"><Plus size={16} /></span><span className="leave-button-label">Leave something</span><span className="leave-button-short" aria-hidden="true">Leave</span></span>
+      </button>
       <button type="button" className="profile-button" aria-label={`Your profile, ${identity?.name ?? "guest"}`} onClick={openProfile} disabled={!identity || !!busy}><UserRound size={18} /></button>
     </header>
     <div className="world-topbar visually-hidden"><div className={`connection-state ${connection}`}><span />{connection === "live" ? "Live" : connection === "connecting" ? "Connecting" : connection === "reconnecting" ? "Reconnecting" : connection === "offline" ? "Offline" : "Connection paused"}</div></div>
