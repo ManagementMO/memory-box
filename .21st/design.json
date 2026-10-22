@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "project": {
+    "name": "memory-box",
+    "productType": "Collaborative pixel canvas with notes, photos, build-on links and grounded Find/Ask",
+    "stack": [
+      "nextjs",
+      "react"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "src/app/globals.css",
+      "src/app/poppy-canvas.css",
+      "src/app/toybox.css"
+    ],
+    "components": [
+      "src/components/canvas-dock.tsx",
+      "src/components/tool-button.tsx",
+      "src/components/pixel-tool-icon.tsx",
+      "src/components/memory-card.tsx"
+    ],
+    "assets": [
+      "public/favicon.svg",
+      "public/cursors/hand-open.svg",
+      "public/cursors/hand-grab.svg",
+      "public/cursors/pencil.svg"
+    ],
+    "instructions": [
+      "AGENTS.md"
+    ]
+  },
+  "design": {
+    "colorMode": "light",
+    "colors": {
+      "--porcelain": {
+        "value": "#fffdf8",
+        "source": "src/app/toybox.css"
+      },
+      "--ink": {
+        "value": "#393044",
+        "source": "src/app/toybox.css"
+      },
+      "--quiet": {
+        "value": "#75657c",
+        "source": "src/app/toybox.css"
+      },
+      "--denim": {
+        "value": "#7360b8",
+        "source": "src/app/toybox.css"
+      },
+      "--action-light": {
+        "value": "#7e65b5",
+        "source": "src/app/toybox.css"
+      },
+      "--action-deep": {
+        "value": "#7360b8",
+        "source": "src/app/toybox.css"
+      }
+    },
+    "typography": {
+      "--font-body": {
+        "value": "var(--font-schibsted), Arial, sans-serif",
+        "source": "src/app/globals.css"
+      },
+      "--font-display": {
+        "value": "var(--font-pixelify), sans-serif",
+        "source": "src/app/globals.css"
+      },
+      "--font-mono": {
+        "value": "var(--font-plex-mono), monospace",
+        "source": "src/app/globals.css"
+      }
+    },
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {
+      "--ease": {
+        "value": "cubic-bezier(.23, 1, .32, 1)",
+        "source": "src/app/globals.css"
+      }
+    },
+    "density": "Compact working chrome around a full-viewport canvas"
+  },
+  "components": {
+    "installed": [
+      "@base-ui/react@1.9.0",
+      "pixelarticons@2.4.2"
+    ],
+    "preferredPrimitives": [
+      "Native buttons with Base UI Tooltip",
+      "Pixelarticons for utility icons",
+      "Original 32px pixel objects for six creation/exploration tools"
+    ],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "White/pastel pixel identity; actual stored artwork keeps its colors and positions",
+      "All six tool labels visible on touch; stationary hit targets at least 44px",
+      "No fabricated participants, stories or activity",
+      "Keep real-time, painting, private image upload, build-on and source-backed search behavior",
+      "Respect reduced motion; retain keyboard focus and tooltip dismissal"
+    ],
+    "avoid": [
+      "Marketing slogans or starter counters around the canvas",
+      "Idle floating objects, confetti, autoplay or perpetual bounce",
+      "Icon-only mobile navigation",
+      "Large motion runtimes for simple visual feedback"
+    ]
+  },
+  "decisions": [
+    {
+      "date": "2026-10-22",
+      "direction": "Pixel toybox",
+      "reason": "User authorized a more bubbly, tactile, animated refinement of the existing canvas. Distance-based dock artwork motion is adapted from 21st Motion Primitives references; CSS preserves fixed targets and no runtime dependency. Paper tint connects composing to placing. Motion is bounded and user-initiated."
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "design.colorMode:light",
+      "source": "src/app/globals.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "src/app/globals.css"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "AGENTS.md"
+    },
+    {
+      "fact": "project.stack:nextjs",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-10-22T07:46:03.762Z"
+}

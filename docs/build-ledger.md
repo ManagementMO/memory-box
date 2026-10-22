@@ -1,5 +1,14 @@
 # Memory Box build ledger
 
+## Pixel toybox, 22 October 2026
+
+- Authority: the user explicitly requested deeper design/component research, a more distinctive bubbly pastel pixel UI, tasteful motion, better hand/icons, and commit/push/deploy. The research and implementation contract is in `docs/specs/2026-10-22-pixel-toybox.md`; durable project context is recorded under `.21st/`.
+- Compared21st Motion Primitives/HextaUI docks, React Bits, Kinopio, tldraw overlay styling, Base UI/Radix primitives and current animation guidance. Reused Base UI and Pixelarticons. Added an original six-object pixel family, custom open/closed glove and pencil cursors, a fixed-target responsive dock with pointer-proximity artwork motion, hover-only box mascot details, warmer control surfaces, material-aware note/image editors, pixel peer pointers and44px mobile paint controls. No new runtime package, migration or content import.
+- Verified174 unit tests, TypeScript and optimized production build.12 real-service desktop/mobile browser cases passed, covering actual membership/cursors/departure, stored-original navigation, notes/private photos/build-on ownership, accepted painting/partial undo, provider-backed source return and three zoom distances. All18 fixture identities and two fixture assets were cleaned.
+- One batched visual pass and one confirmation covered desktop/mobile including320px, note/photo/search/paint and three distances. The settled width sweep passed320/390/700/701/768/850/900/1050/1440px without document overflow. All6 labels remain visible. Dock glyph movement leaves button bounds unchanged; keyboard hints/Escape and live reduced-motion changes passed.44px paint controls and a long note scrolled clear of its counter were confirmed.
+- Independent source review found no confirmed actionable defect. Its potential counter-overlap concern was addressed with30px reserved bottom padding and browser evidence.21st review reported0 errors/0 warnings, with token-normalization suggestions for the new authored palette. Impeccable reported one generic overshoot warning; the brief explicitly supports a bounded bubbly response, so the tiny hover-only glyph motion is retained. New primary text contrast is at least4.75:1 across the normal gradient and5.06:1 at the lightest hover stop.
+- The Git-connected production release is pushed after these checks. Exact deployment/CI/alias, public screenshots and smoke results, content preservation and read-only capture-guest cleanup are recorded in this chat's output release notes after publishing.
+
 ## Clean pixel UI, 22 October 2026
 
 - Authority: the user explicitly requested more design research, suitable libraries/skills/tools, cute pixel icons and logos throughout, and removal of slogan-style text and public community/starter counters. This refines the existing white/pastel canvas; stored posts, pixels and source relationships are unchanged.

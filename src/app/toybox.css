@@ -1,0 +1,210 @@
+/* Pixel toybox: authored objects, quiet paper, motion on interaction only. */
+.living-mosaic-app {
+  --ink: #393044;
+  --quiet: #75657c;
+  --porcelain: #fffdf8;
+  --denim: #7360b8;
+  --denim-dark: #584790;
+  --blue-wash: #f0eafa;
+  --line: #e5dbe8;
+  --action-light: #7e65b5;
+  --action-deep: #7360b8;
+  --action-edge: #67539f;
+  --toy-edge: #ddd1e3;
+  --toy-shadow: 0 3px 5px #49364f0a, 0 10px 26px #49364f12;
+  --toy-ease: cubic-bezier(.2, .8, .2, 1);
+  --toy-spring: cubic-bezier(.2, 1.35, .5, 1);
+}
+
+/* Header: the little box is the signature; the working controls stay compact. */
+.living-mosaic-app .app-header { background: #fffefa; border-bottom: 1px solid #eee6ec; padding-inline: 24px; gap: 14px; }
+.living-mosaic-app .wordmark { font-size: 29px; color: #393044; gap: 9px; }
+.living-mosaic-app .brand-mark { width: 48px; height: 48px; overflow: visible; }
+.living-mosaic-app .box-mark { display: block; width: 100%; height: 100%; overflow: visible; }
+.box-treasures { transform-origin: 16px 10px; transition: transform 240ms var(--toy-spring); }
+.box-body { transform-origin: 16px 28px; transition: transform 240ms var(--toy-spring); }
+.living-mosaic-app .header-motto { background: #fff1c9; border-radius: 7px; padding: 7px 10px; color: #755a35; transform: rotate(-2deg); }
+.living-mosaic-app .campus-unofficial { color: #7e6443; }
+.living-mosaic-app .header-find { border: 1px solid #e9e0eb; border-radius: 14px; background: #fff; min-width: 208px; color: #74627e; padding: 10px 13px; gap: 10px; }
+.living-mosaic-app .header-find kbd { margin-left: auto; border-color: #e7deeb; border-radius: 5px; background: #faf6fc; }
+.living-mosaic-app .header-browse, .living-mosaic-app .profile-button { border-radius: 14px; background: #f4eff8; color: #79628e; }
+.living-mosaic-app .profile-button { border: 1px solid #e6dcee; background: #eee5f8; }
+.living-mosaic-app .button { border-radius: 12px; transition: transform 120ms var(--toy-ease), background 120ms ease-out; }
+.living-mosaic-app .button-primary { color: #fff; background: linear-gradient(180deg, var(--action-light), var(--action-deep)); border: 1px solid #67539f; box-shadow: inset 0 1px 1px #ffffff66, 0 3px 5px #70539324; }
+.living-mosaic-app .button-primary:hover:not(:disabled) { background: linear-gradient(180deg, #7960b4, #6851aa); }
+.living-mosaic-app .button-primary:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 3px #45306440; }
+.living-mosaic-app .button-secondary { border-color: #e4d9e8; background: #fffcff; color: #665173; box-shadow: 0 2px 3px #49364f08; }
+.living-mosaic-app .leave-button { border-radius: 14px; gap: 8px; }
+.living-mosaic-app button:focus-visible { outline: 3px solid #8d6db9; outline-offset: 3px; }
+
+/* A stationary tray; only its six small objects respond to the pointer. */
+.living-mosaic-app .canvas-dock {
+  left: 50%; right: auto; bottom: 20px; transform: translateX(-50%);
+  padding: 8px; gap: 5px; border: 1px solid var(--toy-edge); border-radius: 23px;
+  background: #fffdfd; box-shadow: inset 0 2px 0 #fff, 0 4px 5px #49364f0a, 0 13px 32px #49364f19;
+}
+.living-mosaic-app .canvas-dock > button {
+  width: 70px; min-width: 70px; min-height: 71px; padding: 6px 5px 7px; gap: 6px;
+  border-radius: 16px; font-size: 10px; font-weight: 500; color: #5d4d69;
+  background: transparent; transition: background 120ms ease-out; transform: none;
+}
+.living-mosaic-app .canvas-dock > button::before {
+  content: ''; position: absolute; top: 5px; left: 11px; right: 11px; height: 41px;
+  border-radius: 12px; background: var(--tool-tint); box-shadow: inset 0 1px 1px #ffffffd9, 0 2px 3px #5540640a;
+  pointer-events: none;
+}
+.living-mosaic-app .canvas-dock .tool-art {
+  width: 32px; height: 32px; margin: 0 8px 2px; position: relative; z-index: 1; flex-shrink: 0;
+  transform: translateY(var(--tool-lift, 0px)) scale(var(--tool-scale, 1)); transform-origin: 50% 80%;
+  transition: transform 210ms var(--toy-spring);
+}
+.living-mosaic-app .canvas-dock > button > span { display: block; position: relative; line-height: 1.3; }
+.living-mosaic-app .canvas-dock > button:hover { background: #f7f1fa; color: #4b3b57; transform: none; }
+.living-mosaic-app .canvas-dock > button[aria-pressed=true] { background: var(--tool-tint); color: #493751; box-shadow: inset 0 0 0 1px #73548522; }
+.living-mosaic-app .canvas-dock > button[aria-pressed=true]::before { background: #ffffff66; }
+.living-mosaic-app .canvas-dock > button:active { transform: none; }
+.living-mosaic-app .canvas-dock > button:active .tool-art { transform: translateY(2px) scale(.96); transition-duration: 70ms; }
+.living-mosaic-app .canvas-dock > .explore-button { --tool-tint: #eee5fa; }
+.living-mosaic-app .canvas-dock > .wander-button { --tool-tint: #ffeadb; }
+.living-mosaic-app .canvas-dock > .together-button { --tool-tint: #ede3fb; }
+.living-mosaic-app .canvas-dock > .paint-button { --tool-tint: #ffe2e9; }
+.living-mosaic-app .canvas-dock > .note-button { --tool-tint: #fff0bd; }
+.living-mosaic-app .canvas-dock > .photo-button { --tool-tint: #e4eff9; }
+
+/* Compact navigation bubbles, separate from the content plane. */
+.living-mosaic-app .canvas-levels { border-radius: 15px; padding: 5px; background: #fffdfd; border-color: var(--toy-edge); box-shadow: var(--toy-shadow); }
+.living-mosaic-app .canvas-levels button { min-height: 34px; border-radius: 10px; padding: 6px 13px; color: #75657c; transition: background 120ms ease-out; }
+.living-mosaic-app .canvas-levels button[aria-pressed=true] { background: #eee3fb; color: #614783; box-shadow: inset 0 1px #fff8; }
+.living-mosaic-app .canvas-levels button:hover { background: #f6f0fa; }
+.living-mosaic-app .world-presence { padding: 6px 11px 6px 7px; min-height: 45px; border-radius: 16px; border-color: var(--toy-edge); box-shadow: var(--toy-shadow); color: #62516f; background: #fffdfd; }
+.living-mosaic-app .presence-stack > span { width: 28px; height: 28px; border-radius: 9px; font-family: var(--font-display); font-size: 15px; }
+.living-mosaic-app .presence-stack > .self-dot { background: #e7daf5; color: #72518a; }
+.living-mosaic-app .presence-light.is-live { background: #9c74c6; box-shadow: none; animation: none; }
+.living-mosaic-app .canvas-zoom { padding: 5px; border-radius: 17px; background: #fffdfd; border-color: var(--toy-edge); box-shadow: var(--toy-shadow); bottom: 20px; }
+.living-mosaic-app .canvas-zoom > button { border-radius: 11px; color: #715d83; }
+.living-mosaic-app .canvas-zoom > button:hover { background: #f0e8fa; }
+.living-mosaic-app .canvas-zoom > span:not(.zoom-divider) { color: #6e5a7a; font-variant-numeric: tabular-nums; }
+.living-mosaic-app .world-coordinate { bottom: 79px; right: 18px; color: #79687e; background: #fffdf8e8; padding: 4px 7px; border-radius: 6px; }
+.living-mosaic-app .canvas-guidance { color: #7a687e; bottom: 23px; }
+.living-mosaic-app .pan-controls { border-radius: 13px; background: #fff; border-color: var(--toy-edge); box-shadow: var(--toy-shadow); }
+.living-mosaic-app .pan-controls > button { border-radius: 8px; }
+
+/* Artwork keeps its authored colours. Paper edges and tape add depth around it. */
+.living-mosaic-app .world-board { background-color: var(--porcelain); background-image: radial-gradient(#bca8cd55 .8px, transparent 1px); }
+.living-mosaic-app .memory-card { box-shadow: 0 2px 3px #5c3d5910, 0 6px 10px #5c3d5915; }
+.living-mosaic-app .memory-paper { border-radius: 2px; box-shadow: inset 0 1px #fff8; }
+.living-mosaic-app .memory-card.material-scrap::before { background: #f7d98dbf; box-shadow: inset 0 0 0 1px #d7ba7422; }
+.living-mosaic-app .memory-card.image::before { background: #cdb5eabf; box-shadow: inset 0 0 0 1px #ad8acb22; }
+.living-mosaic-app .memory-photo { border-radius: 2px; }
+.living-mosaic-app .memory-card.is-selected { outline: 2px solid #9473bd; outline-offset: 5px; }
+.living-mosaic-app .memory-thread-tab { border-radius: 6px; background: #fff1f5; border-color: #e9c4d6; color: #88516b; }
+.living-mosaic-app .memory-threads path { stroke: #cc7ca5; }
+
+/* Editors echo the material you're leaving, with ordinary readable form text. */
+.living-mosaic-app .context-panel { top: 76px; bottom: 122px; width: 356px; border-radius: 20px; border-color: #e0d3e6; box-shadow: 0 5px 10px #49364f0b, 0 18px 45px #49364f24; animation: toy-panel-in 180ms var(--toy-ease); }
+.living-mosaic-app .panel-header { min-height: 69px; padding: 12px 16px; background: #fcf8ff; border-color: #eee4f3; }
+.living-mosaic-app .panel-header h2 { gap: 10px; font-size: 14px; color: #5f4772; }
+.living-mosaic-app .panel-title-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: #eee4f8; flex-shrink: 0; }
+.living-mosaic-app .panel-title-icon .tool-art { width: 28px; height: 28px; }
+.living-mosaic-app .panel-header .icon-button { border-radius: 11px; background: #f1e8f7; color: #7c628d; }
+.living-mosaic-app .panel-content { padding: 21px; }
+.living-mosaic-app .panel-mobile-handle { background: #dfcfe8; border-radius: 4px; }
+.living-mosaic-app .panel-paint .panel-title-icon { background: #ffe1e9; }
+.living-mosaic-app .panel-compose .panel-title-icon { background: #fff0c0; }
+.living-mosaic-app .field { color: #6a526e; font-weight: 500; }
+.living-mosaic-app .field input, .living-mosaic-app .field textarea, .living-mosaic-app .field select { border-color: #e6daeb; background: #fdfafd; border-radius: 11px; color: #47374f; font-weight: 400; }
+.living-mosaic-app .field input::placeholder, .living-mosaic-app .field textarea::placeholder { color: #796680; opacity: 1; }
+.living-mosaic-app .field input:focus, .living-mosaic-app .field textarea:focus { outline: 2px solid #e3d4f3; border-color: #af8dcd; }
+.living-mosaic-app .composer[data-kind=text] textarea { background: color-mix(in srgb, var(--draft-paper) 55%, white); border-color: color-mix(in srgb, var(--draft-paper) 70%, #a38e9d); min-height: 143px; padding: 14px 14px 30px; line-height: 1.65; }
+.living-mosaic-app .field-counter { font-weight: 400; color: #826d86; font-variant-numeric: tabular-nums; }
+.living-mosaic-app .type-switch { padding: 5px; border-radius: 13px; background: #f4edf8; }
+.living-mosaic-app .type-switch > button { border-radius: 9px; min-height: 42px; color: #806989; }
+.living-mosaic-app .type-switch > button[aria-pressed=true] { color: #634c77; box-shadow: 0 2px 4px #5d3e6210; }
+.living-mosaic-app .color-swatch { border-radius: 9px; box-shadow: inset 0 2px 1px #ffffff99, 0 2px 3px #49364f12; transition: transform 120ms var(--toy-ease); }
+.living-mosaic-app .color-swatch[aria-pressed=true] { outline: 2px solid #87649f; outline-offset: 3px; border-color: transparent; }
+.living-mosaic-app .upload-box { border: 1.5px dashed #ccb7df; border-radius: 16px; background: #faf5fe; padding: 24px 14px; gap: 11px; color: #695279; }
+.living-mosaic-app .upload-box > .tool-art { width: 56px; height: 56px; transform: rotate(-5deg); margin: 0 0 5px; }
+.living-mosaic-app .upload-box > small { color: #796080; }
+.living-mosaic-app .upload-box > img { border: 6px solid #fff; box-shadow: 0 4px 10px #6952791a; }
+.living-mosaic-app .mode-switch { border-radius: 11px; background: #f3ecf9; padding: 4px; }
+.living-mosaic-app .mode-switch > button { border-radius: 8px; }
+.living-mosaic-app .search-form { border-radius: 13px; border-color: #d9c6e7; box-shadow: 0 2px 5px #69527908; }
+.living-mosaic-app .search-suggestions > button { border-radius: 10px; background: #fcf8ff; border-color: #ebdff2; }
+.living-mosaic-app .memory-result { border-color: #eee5f2; }
+.living-mosaic-app .result-thumb { border-radius: 8px; }
+.living-mosaic-app .lineage { border-radius: 9px; background: #fff0bf; padding: 13px; }
+.living-mosaic-app .descendants .memory-result { border-radius: 10px; }
+.living-mosaic-app .canvas-paint-bar, .living-mosaic-app .placement-bar { border-radius: 16px; border-color: #dfcfe9; background: #fffdfd; box-shadow: var(--toy-shadow); }
+.living-mosaic-app .canvas-paint-bar .icon-button { border-radius: 10px; }
+.living-mosaic-app .paint-turn-status { border-radius: 10px; background: #fff4cf; border-color: #efdfab; }
+.living-mosaic-app .shape-grid > button { border-radius: 11px; }
+.pixel-tooltip { border-radius: 9px; background: #564164; padding: 8px 11px; box-shadow: 0 4px 9px #49364f1c; }
+
+@keyframes toy-panel-in { from { opacity: .5; transform: translateY(7px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes box-blink { 0%, 40%, 100% { transform: scaleY(1); } 50%, 65% { transform: scaleY(.2); } }
+@media (hover: hover) and (pointer: fine) {
+  .living-mosaic-app .world-board { cursor: url('/cursors/hand-open.svg') 16 13, grab; }
+  .living-mosaic-app .world-board.is-brushing, .living-mosaic-app .world-board.is-brushing .memory-card { cursor: url('/cursors/pencil.svg') 3 28, crosshair; }
+  .living-mosaic-app .world-board.is-placing, .living-mosaic-app .world-board.is-placing .memory-card { cursor: crosshair; }
+  .living-mosaic-app .world-board[data-gesture=pan], .living-mosaic-app .world-board[data-gesture=pan] .memory-card { cursor: url('/cursors/hand-grab.svg') 16 15, grabbing; }
+  .living-mosaic-app .wordmark:hover .box-treasures { transform: translateY(-2px) rotate(-4deg); }
+  .living-mosaic-app .wordmark:hover .box-body { transform: rotate(3deg); }
+  .living-mosaic-app .wordmark:hover .box-eyes { transform-box: fill-box; transform-origin: center; animation: box-blink 500ms ease-out 1; }
+  .living-mosaic-app .memory-card:hover { transform: rotate(0deg) translateY(-3px); box-shadow: 0 3px 6px #5c3d591a, 0 10px 18px #5c3d5924; }
+  .living-mosaic-app .color-swatch:hover { transform: translateY(-2px); }
+}
+@media (max-width: 1050px) {
+  .living-mosaic-app .canvas-zoom { bottom: 125px; }
+  .living-mosaic-app .world-coordinate { bottom: 183px; }
+  .living-mosaic-app .canvas-guidance { bottom: 125px; }
+}
+@media (max-width: 850px) {
+  .living-mosaic-app .header-find { min-width: 44px; width: 44px; padding: 10px; }
+}
+@media (max-width: 700px) {
+  .living-mosaic-app .app-header { padding: 8px 11px; gap: 8px; }
+  .living-mosaic-app .wordmark { font-size: 24px; gap: 6px; }
+  .living-mosaic-app .brand-mark { width: 38px; height: 38px; }
+  .living-mosaic-app .header-find, .living-mosaic-app .leave-button { border-radius: 13px; }
+  .living-mosaic-app .canvas-dock { width: min(376px, calc(100% - 20px)); max-width: none; padding: 6px; gap: 1px; border-radius: 20px; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .living-mosaic-app .canvas-dock > button { flex: 1; width: 0; min-width: 44px; min-height: 65px; padding: 6px 0; gap: 6px; border-radius: 13px; font-size: 9px; }
+  .living-mosaic-app .canvas-dock > button::before { left: calc(50% - 21px); right: auto; width: 42px; height: 38px; top: 4px; border-radius: 10px; }
+  .living-mosaic-app .canvas-dock .tool-art { width: 30px; height: 30px; margin: 0 0 1px; }
+  .living-mosaic-app .canvas-dock > button > span, .living-mosaic-app .canvas-dock > .together-button > span { display: block; }
+  .living-mosaic-app .canvas-levels { top: 12px; left: 10px; padding: 4px; border-radius: 13px; max-width: calc(100% - 108px); }
+  .living-mosaic-app .canvas-levels button { font-size: 10px; padding: 5px 7px; min-height: 33px; border-radius: 9px; }
+  .living-mosaic-app .world-presence { right: 10px; top: 12px; padding: 5px 7px 5px 4px; gap: 5px; min-height: 43px; border-radius: 14px; }
+  .living-mosaic-app .presence-stack > span { width: 25px; height: 25px; border-radius: 7px; font-size: 13px; }
+  .living-mosaic-app .canvas-zoom { right: 10px; bottom: 108px; border-radius: 14px; }
+  .living-mosaic-app .canvas-zoom > button { min-height: 36px; height: 36px; width: 34px; min-width: 34px; border-radius: 9px; }
+  .living-mosaic-app .world-coordinate { bottom: 164px; }
+  .living-mosaic-app .canvas-guidance { bottom: 166px; left: 12px; max-width: 170px; font-size: 9px; }
+  .living-mosaic-app .context-panel, .living-mosaic-app .panel-inspect, .living-mosaic-app .panel-inspect.panel-expanded, .living-mosaic-app .panel-compose { top: auto; bottom: 104px; left: 10px; right: 10px; width: auto; border-radius: 19px; max-height: min(55dvh, 460px); }
+  .living-mosaic-app .panel-compose, .living-mosaic-app .panel-search { max-height: min(64dvh, 520px); }
+  .living-mosaic-app .panel-inspect.panel-expanded { max-height: min(75dvh, 640px); }
+  .living-mosaic-app .panel-paint { max-height: 192px; }
+  .living-mosaic-app .panel-header { min-height: 61px; padding: 9px 14px; }
+  .living-mosaic-app .panel-content { padding: 17px; }
+  .living-mosaic-app .panel-title-icon { width: 34px; height: 34px; }
+  .living-mosaic-app .canvas-paint-bar { top: 66px; }
+  .living-mosaic-app .canvas-paint-bar { grid-template-columns: 44px minmax(0, 1fr) 44px; padding: 10px; gap: 8px; }
+  .living-mosaic-app .canvas-paint-bar > .paint-preview-count { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; font: 500 11px/1.4 var(--font-body); margin: 0; }
+  .living-mosaic-app .canvas-paint-bar .compact-turn { font: 400 10px/1.4 var(--font-body); white-space: normal; overflow: visible; text-overflow: clip; margin: 0; }
+  .living-mosaic-app .canvas-paint-bar .button, .living-mosaic-app .canvas-paint-bar .icon-button { width: auto; min-width: 44px; min-height: 44px; }
+  .living-mosaic-app .canvas-paint-bar .brush-color-label, .living-mosaic-app .canvas-paint-bar input[type=color] { width: 44px; height: 44px; }
+  .living-mosaic-app .field input, .living-mosaic-app .field textarea, .living-mosaic-app .field select { font-size: 16px; }
+}
+@media (max-width: 350px) {
+  .living-mosaic-app .wordmark { font-size: 22px; gap: 4px; }
+  .living-mosaic-app .brand-mark { width: 33px; height: 33px; }
+  .living-mosaic-app .canvas-dock { padding: 5px; gap: 0; }
+  .living-mosaic-app .canvas-levels button { padding-inline: 6px; font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-mosaic-app .canvas-dock .tool-art, .living-mosaic-app .box-treasures, .living-mosaic-app .box-body,
+  .living-mosaic-app .memory-card, .living-mosaic-app .color-swatch, .living-mosaic-app .button { transition: none; }
+  .living-mosaic-app .context-panel, .living-mosaic-app .wordmark:hover .box-eyes { animation: none; }
+  .living-mosaic-app .canvas-dock > button:active .tool-art, .living-mosaic-app .wordmark:hover .box-treasures,
+  .living-mosaic-app .wordmark:hover .box-body, .living-mosaic-app .color-swatch:hover { transform: none; }
+  .living-mosaic-app .memory-card:hover { transform: rotate(var(--tilt)); }
+}

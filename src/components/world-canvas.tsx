@@ -84,14 +84,14 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > width || y > height || age > 12_000) continue;
       cursors.save(); cursors.translate(x, y); cursors.globalAlpha = age > 7000 ? .55 : 1;
       cursors.fillStyle = peer.color; cursors.strokeStyle = "#FFFFFF"; cursors.lineWidth = 1.6;
-      cursors.beginPath(); cursors.moveTo(0, 0); cursors.lineTo(2, 20); cursors.lineTo(8, 14); cursors.lineTo(15, 13); cursors.closePath(); cursors.fill(); cursors.stroke();
-      const action = peer.tool === "paint" ? " · painting a preview" : peer.tool === "note" ? " · leaving a fragment" : "";
+      cursors.beginPath(); cursors.moveTo(0, 0); cursors.lineTo(3, 0); cursors.lineTo(3, 3); cursors.lineTo(6, 3); cursors.lineTo(6, 6); cursors.lineTo(9, 6); cursors.lineTo(9, 9); cursors.lineTo(12, 9); cursors.lineTo(12, 12); cursors.lineTo(7, 12); cursors.lineTo(7, 16); cursors.lineTo(4, 16); cursors.lineTo(4, 20); cursors.lineTo(0, 20); cursors.closePath(); cursors.fill(); cursors.stroke();
+      const action = peer.tool === "paint" ? " · painting" : peer.tool === "note" ? " · adding a note" : "";
       const label = `${peer.name}${c.z > .35 ? action : ""}`;
       cursors.font = cursorFont;
       const labelWidth = Math.min(cursors.measureText(label).width + 16, Math.max(60, width - 16));
       const preferredX = x + labelWidth + 12 > width ? x - labelWidth + 6 : x + 9;
       const lx = Math.max(4, Math.min(width - labelWidth - 4, preferredX)) - x, ly = y + 48 > height ? -30 : 21;
-      cursors.fillStyle = peer.color; cursors.beginPath(); cursors.roundRect(lx, ly, labelWidth, 25, 4); cursors.fill();
+      cursors.fillStyle = peer.color; cursors.beginPath(); cursors.roundRect(lx, ly, labelWidth, 25, 8); cursors.fill(); cursors.stroke();
       cursors.fillStyle = "#FFFFFF"; cursors.fillText(label, lx + 8, ly + 16, labelWidth - 16); cursors.restore();
     }
   }, []);
@@ -227,6 +227,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     g.previousCell = cell; draw();
   };
   const finish = (pointerId: number, cancelled: boolean) => {
+    if (board.current) delete board.current.dataset.gesture;
     const g = gesture.current, point = pointers.current.get(pointerId);
     if (g?.moved) suppressCardClickUntil.current = performance.now() + 500;
     pointers.current.delete(pointerId);
@@ -268,6 +269,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
         gesture.current = { kind: "pinch", start: middle, camera: { ...camera.current }, moved: true, distance: Math.hypot(b.x - a.x, b.y - a.y), anchor: screenToWorld(camera.current, localPoint(middle)) };
       } else if (pointers.current.size === 1) {
         const kind = brush?.enabled && !brush.disabled && !event.shiftKey && !event.altKey ? "paint" : "pan";
+        event.currentTarget.dataset.gesture = kind;
         gesture.current = { kind, start: point, camera: { ...camera.current }, moved: false, memoryId: card?.dataset.memoryId }; stroke.current = [];
         if (kind === "paint") paintAt(point);
       }

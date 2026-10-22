@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowRight, Globe2, Image as ImageIcon, ImagePlus, Link2, Type, X } from "./pixel-icons";
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
+import { PixelToolIcon } from "./pixel-tool-icon";
 import type { Memory, MemoryType, SceneId } from "@/lib/types";
 import { PAPER_COLORS } from "@/lib/scenes";
 
@@ -24,13 +25,13 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
     const previewUrl = URL.createObjectURL(file);
     change({ file, previewUrl, assetId: undefined });
   };
-  return <form className="composer" onSubmit={(event) => { event.preventDefault(); onPreview(); }}>
+  return <form className="composer" data-kind={draft.type} style={{ "--draft-paper": draft.color } as CSSProperties} onSubmit={(event) => { event.preventDefault(); onPreview(); }}>
     <div className="public-label"><Globe2 size={16} />Public on the canvas</div>
     {parent ? <div className="lineage"><span>Building on @{parent.authorName}</span><button type="button" onClick={() => onOriginal(parent.id)}>{parent.title || parent.body.slice(0, 55)}<ArrowRight size={14} /></button><small>Your contribution will link back here.</small></div> : null}
     {!draft.editId ? <div className="type-switch" aria-label="Kind of memory">{([{ id: "text", label: "Text", icon: Type }, { id: "image", label: "Image", icon: ImageIcon }, { id: "link", label: "Link", icon: Link2 }] as const).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-pressed={draft.type === id} onClick={() => change({ type: id })}><Icon size={18} />{label}</button>)}</div> : null}
     {draft.type === "image" ? <>
       <div className={`upload-box${draft.previewUrl ? " has-image" : ""}`} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (!draft.editId) chooseFile(event.dataTransfer.files[0]); }}>
-        {draft.previewUrl ? <img src={draft.previewUrl} alt="Your image preview" /> : <><ImagePlus size={28} /><span>A photo, screenshot, or drawing</span><small>PNG, JPEG or WebP · up to 5 MB</small></>}
+        {draft.previewUrl ? <img src={draft.previewUrl} alt="Your image preview" /> : <><PixelToolIcon tool="photo" /><span>A photo, screenshot, or drawing</span><small>PNG, JPEG or WebP · up to 5 MB</small></>}
         {!draft.editId ? <button type="button" className="button button-secondary" onClick={() => fileInput.current?.click()}>{draft.file ? "Choose another image" : "Choose an image"}</button> : null}
         <input ref={fileInput} type="file" className="visually-hidden" accept="image/png,image/jpeg,image/webp" aria-label="Choose image" onChange={(event) => chooseFile(event.target.files?.[0])} disabled={!!draft.editId} />
         {draft.file ? <span className="upload-filename">{draft.file.name}</span> : null}
