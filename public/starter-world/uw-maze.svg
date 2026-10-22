@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420" viewBox="0 0 600 420">
+<rect width="600" height="420" fill="#FAF9FC"/><path d="M0 70H600M0 120H600M0 170H600M0 220H600M0 270H600M0 320H600M0 370H600" stroke="#E9E1F1" stroke-width="2"/>
+<g fill="none" stroke="#BDBBCB" stroke-width="18" stroke-linecap="square"><path d="M74 319V87H526V193M526 268V332H350M74 332H277M141 151H326V213H218V332M141 151V268M395 87V146H460V267H326V332M395 213H326V268H277"/></g>
+<g fill="#363542"><rect x="65" y="78" width="27" height="27"/><rect x="513" y="319" width="27" height="27"/></g><g shape-rendering="crispEdges" fill="#E8BF54"><path d="M172 184H196V196H208V208H196V220H172V208H160V196H172Z"/><path d="M370 245H382V257H394V269H382V281H370V269H358V257H370Z"/></g>
+<rect x="198" y="27" width="204" height="35" fill="#FFF3BF"/><text x="211" y="51" fill="#363542" font-family="monospace" font-size="20" font-weight="bold">MC? MC. MC? MC.</text><text x="124" y="386" fill="#77728E" font-family="monospace" font-size="15">NOT A MAP. YOU ARE STILL LOST.</text>
+</svg>

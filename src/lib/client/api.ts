@@ -1,9 +1,10 @@
 "use client";
 
 import { getBrowserSupabase, guestSession } from "./supabase";
+import { readPaintTurn, type PaintTurnTiming } from "./paint-turn";
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); this.name = "ApiError"; }
+  constructor(message: string, public status: number, public code = "request_failed", public retryAfterSeconds?: number, public paintTurn?: PaintTurnTiming) { super(message); this.name = "ApiError"; }
 }
 
 export async function publicApi<T>(path: string): Promise<T> {
@@ -21,7 +22,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, headers, cache: "no-store" });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new ApiError(typeof payload?.error === "string" ? payload.error : "That didn’t go through. Please try again.", response.status);
+    const retry = Number(response.headers.get("Retry-After"));
+    throw new ApiError(typeof payload?.error === "string" ? payload.error : "That didn’t go through. Please try again.", response.status,
+      typeof payload?.code === "string" && /^[a-z_]{1,80}$/.test(payload.code) ? payload.code : "request_failed",
+      Number.isFinite(retry) && retry > 0 && retry <= 3600 ? retry : undefined, readPaintTurn(payload) ?? undefined);
   }
   return payload as T;
 }

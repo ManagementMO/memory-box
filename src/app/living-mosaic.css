@@ -4,6 +4,18 @@
 .living-mosaic-app .wordmark { font-size: 26px; gap: 9px; }
 .living-mosaic-app .brand-mark { width: 31px; height: 31px; }
 .living-mosaic-app .header-motto { color: var(--quiet); font-size: 12px; padding-left: 14px; border-left: 1px solid var(--line); }
+.living-mosaic-app .campus-unofficial { color: #89889b; font-size: 10px; }
+.living-mosaic-app .paint-turn-status { position: relative; display: flex; align-items: center; gap: 9px; padding: 12px 10px 16px; margin: 16px 0; border: 1px solid #e4dca9; border-radius: 6px; background: #fffbed; }
+.living-mosaic-app .paint-turn-status strong { display: block; font-size: 12px; font-weight: 500; }
+.living-mosaic-app .paint-turn-status small { display: block; font-size: 10px; line-height: 1.6; color: #7c704b; margin-top: 3px; }
+.living-mosaic-app .turn-light { flex: 0 0 auto; width: 7px; height: 7px; background: #d3ad3e; box-shadow: 3px 3px #f0e5ba; }
+.living-mosaic-app .paint-turn-status progress { position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; border: 0; background: #eee8cf; appearance: none; }
+.living-mosaic-app .paint-turn-status progress::-webkit-progress-bar { background: #eee8cf; }
+.living-mosaic-app .paint-turn-status progress::-webkit-progress-value { background: #d3ad3e; }
+.living-mosaic-app .paint-turn-status progress::-moz-progress-bar { background: #d3ad3e; }
+.living-mosaic-app .compact-turn { display: block; margin-top: 3px; color: #857045; font: 9px/1.4 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.living-mosaic-app .canvas-paint-bar .paint-preview-count { min-width: 0; }
+.living-mosaic-app .canvas-paint-bar[data-paint-wait="0"] .compact-turn { color: var(--quiet); }
 .living-mosaic-app .header-find { margin-left: auto; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 5px 9px; border: 0; border-radius: 5px; background: white; color: var(--quiet); font-size: 12px; }
 .living-mosaic-app .header-find:hover { background: var(--blue-wash); color: var(--denim); }
 .living-mosaic-app .header-find kbd { font: 11px var(--font-mono); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; margin-left: 3px; }

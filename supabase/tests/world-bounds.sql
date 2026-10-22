@@ -36,7 +36,10 @@ begin
  exception when insufficient_privilege then blocked:=true;end;
  assert blocked,'another author still cannot undo the original operation';
 
- perform public.mb_apply_paint(actor,gen_random_uuid()::text,'[{"x":-10000,"y":-10000,"color":"#292B3A"},{"x":200,"y":120,"color":"#FFFFFF"},{"x":9999,"y":9999,"color":"#E7ABC6"}]',null);
+ -- This rollback-only bounds suite exercises a second valid forward write;
+ -- time-advance this exact fixture instead of bypassing the production cadence.
+ update public.paint_operations set created_at=clock_timestamp()-interval '16 seconds' where id=(a->>'operationId')::uuid;
+ assert public.mb_apply_paint(actor,gen_random_uuid()::text,'[{"x":-10000,"y":-10000,"color":"#292B3A"},{"x":200,"y":120,"color":"#FFFFFF"},{"x":9999,"y":9999,"color":"#E7ABC6"}]',null)->>'status'='accepted','signed edge paint uses a replenished turn';
  foreach bad in array array[
   '[{"x":-10001,"y":0,"color":"#FFFFFF"}]'::jsonb,
   '[{"x":10000,"y":0,"color":"#FFFFFF"}]'::jsonb,

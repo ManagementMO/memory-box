@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420" viewBox="0 0 600 420">
+<rect width="600" height="420" fill="#FAF8FE"/><path d="M0 70H600M0 120H600M0 170H600M0 220H600M0 270H600M0 320H600M0 370H600" stroke="#E9E1F1" stroke-width="2"/>
+<g shape-rendering="crispEdges"><path d="M148 109H452V126H486V143H503V296H486V313H452V330H148V313H114V296H97V143H114V126H148Z" fill="#C7C5D3"/><path d="M148 126H452V143H486V296H452V313H148V296H114V143H148Z" fill="#FFFFFF"/><path d="M165 143H435V160H469V279H435V296H165V279H131V160H165Z" fill="#F5E7B4"/><path d="M182 170H418V179H182ZM182 204H418V213H182ZM182 238H418V247H182ZM182 272H284V281H182Z" fill="#C68A70"/><path d="M540 116H549V298H540ZM514 116H523V165H514ZM527 116H536V165H527ZM514 165H549V174H514Z" fill="#363542"/></g>
+<rect x="149" y="44" width="304" height="39" fill="#FFF3BF"/><text x="167" y="70" fill="#363542" font-family="monospace" font-size="21" font-weight="bold">LINES: UNDER REVIEW</text><text x="178" y="376" fill="#77728E" font-family="monospace" font-size="14">a completely fictional sauce order</text>
+</svg>

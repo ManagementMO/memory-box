@@ -7,6 +7,7 @@ import { memorySize } from "@/lib/scenes";
 import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
 import { arrivalBounds, frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
 import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
+import { campusArrival } from "@/lib/client/campus-arrival";
 import { MemoryCard } from "./memory-card";
 
 export interface CameraView extends Camera { width: number; height: number }
@@ -140,7 +141,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const entryView = useCallback((animate = true, closerMobile = false) => {
     const element = board.current;
     if (!element) return;
-    const occupied = (closerMobile ? arrivalBounds : occupiedBounds)(latest.current.world.memories.map(memory => ({ ...memory, ...memorySize(memory) })), latest.current.world.pixels, GRID_SIZE);
+    const occupied = (closerMobile?campusArrival(latest.current.world.memories):null) ?? (closerMobile ? arrivalBounds : occupiedBounds)(latest.current.world.memories.map(memory => ({ ...memory, ...memorySize(memory) })), latest.current.world.pixels, GRID_SIZE);
     const size = { width: element.clientWidth, height: element.clientHeight };
     let target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 24 : 48, maxZoom: .85 });
     if (closerMobile) target = zoomCameraAt(target, size.width < 700 ? 1.65 : Math.min(1.5, .85 / target.z), { x: size.width / 2, y: size.height / 2 });

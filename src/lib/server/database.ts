@@ -34,7 +34,10 @@ export interface AssetRecord {
 }
 export interface IndexJob { id: string; memory_id: string; source_version: number; attempts: number; memory: Memory }
 export interface AssetCleanupClaim { id: string; path: string | null; staging_path: string }
-export interface PaintAcceptance { operationId: string; revision: number; epoch: number; pixels: Pixel[] }
+export interface PaintTurn { serverTime: string; nextPaintAt: string; cooldownSeconds: 15 }
+export interface PaintAcceptance extends PaintTurn { status: "accepted"; operationId: string; revision: number; epoch: number; pixels: Pixel[] }
+export interface PaintCooldown extends PaintTurn { status: "cooldown"; retryAfterMs: number }
+export type PaintResult = PaintAcceptance | PaintCooldown;
 export interface UndoAcceptance { operationId: string; revision: number; restored: number; skipped: number }
 
 export const getSnapshot = () => rpc<WorldSnapshot>("mb_snapshot");
@@ -42,8 +45,9 @@ export const getChanges = (after: number, epoch: number) => rpc<{ resync: boolea
 export const getProfile = (actorId: string) => rpc<ProfileRecord>("mb_profile", { p_actor: actorId });
 export const updateProfile = (actorId: string, name: string) => rpc<ProfileRecord>("mb_profile", { p_actor: actorId, p_name: name });
 
+export const getPaintTurn = (actorId: string) => rpc<PaintTurn>("mb_paint_turn", { p_actor: actorId });
 export function applyPaint(actorId: string, opId: string, cells: Pixel[], sceneId?: SceneId | null) {
-  return rpc<PaintAcceptance>("mb_apply_paint", { p_actor: actorId, p_client_id: opId, p_cells: cells.map(({ x, y, color }) => ({ x, y, color })), p_scene_id: sceneId || null });
+  return rpc<PaintResult>("mb_apply_paint", { p_actor: actorId, p_client_id: opId, p_cells: cells.map(({ x, y, color }) => ({ x, y, color })), p_scene_id: sceneId || null });
 }
 export const undoPaint = (actorId: string, operationId: string) => rpc<UndoAcceptance>("mb_undo_paint", { p_actor: actorId, p_operation_id: operationId });
 

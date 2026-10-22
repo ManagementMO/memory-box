@@ -58,18 +58,21 @@ async function main() {
       { x: 194, y: 116, color: "#C55D4A" },
       { x: 195, y: 116, color: "#C55D4A" },
     ], "garden");
+    assert.ok(first.status === "accepted", "first forward paint starts an authoritative turn");
     operations.push({ id: first.operationId, revision: first.revision }); ledger();
     const duplicate = await applyPaint(alice, opId, [
       { x: 194, y: 116, color: "#C55D4A" },
       { x: 195, y: 116, color: "#C55D4A" },
     ], "garden");
+    assert.ok(duplicate.status === "accepted", "same-operation replay succeeds while cooling");
     assert.equal(duplicate.operationId, first.operationId, "retry must return the existing operation");
     assert.equal(duplicate.revision, first.revision, "retry must not advance revision");
     await assert.rejects(() => applyPaint(alice, opId, [{ x: 194, y: 116, color: "#3158ED" }], "garden"));
-    await assert.rejects(() => applyPaint(alice, randomUUID(), [{ x: 200, y: 0, color: "#3158ED" }], "garden"));
+    await assert.rejects(() => applyPaint(alice, randomUUID(), [{ x: 10000, y: 0, color: "#3158ED" }], "garden"));
     await assert.rejects(() => applyPaint(alice, randomUUID(), [{ x: 1, y: 1, color: "url(javascript:bad)" }], "garden"));
 
     const second = await applyPaint(bob, randomUUID(), [{ x: 194, y: 116, color: "#3158ED" }], "garden");
+    assert.ok(second.status === "accepted", "another actor has an independent turn");
     operations.push({ id: second.operationId, revision: second.revision }); ledger();
     assert.ok(second.revision > first.revision);
     const undone = await undoPaint(alice, first.operationId);

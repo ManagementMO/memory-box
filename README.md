@@ -1,5 +1,9 @@
 # Memory Box
 
+The first community is an unofficial **Waterloo commons**: a goose with a co-op interview, an unfinished pink tie, an imaginary MC maze, a sauce-line debate, and a train that needs another carriage. Original campus jokes and quieter memories share the same white/pastel world. Older contributions remain reachable through World and Wander.
+
+Shared painting uses **15-second turns, up to144 pixels per save**, enforced in the database transaction. People can keep sketching, leave notes/photos, build on originals or ask the box while waiting. Timing survives reloads; rejected previews are retained. Immediate one-way undo preserves other people’s later edits. This is per-guest pacing rather than verified one-human fairness.
+
 A world of little lives. Get lost in a sprawling mosaic, paint something ridiculous together, leave an original memory, and follow what grows beside it.
 
 **[Open the live commons](https://memory-box-commons.vercel.app)**
