@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Compass, Maximize2, Minus, Plus } from "./pixel-icons";
 import { ToolButton } from "./tool-button";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Memory, Pixel, SceneId, WorldSnapshot } from "@/lib/types";
 import { memorySize } from "@/lib/scenes";
 import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
@@ -15,6 +15,7 @@ import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 import type { ContributionMark } from "@/lib/client/contribution-feedback";
 import { ContributionMarkView } from "./contribution-mark";
 import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
+import { spatialIndex } from "@/lib/client/spatial-index";
 
 export interface CameraView extends Camera { width: number; height: number }
 export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore" | "place"; points?: FramePoint[]; camera?: CameraView; place?: SharedPlace }
@@ -39,8 +40,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const knownMemories=useRef<Map<string,number>|null>(null),arrivalTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [arrived,setArrived]=useState<Set<string>>(()=>new Set());
   const floatingState=useRef(floating);floatingState.current=floating;
-  const latest = useRef({ world, pending, brush, onCameraChange, peers, onCursor });
-  latest.current = { world, pending, brush, onCameraChange, peers, onCursor };
+  const pixelIndex=useMemo(()=>spatialIndex(world.pixels,pixel=>({x:pixel.x*GRID_SIZE,y:pixel.y*GRID_SIZE,width:GRID_SIZE,height:GRID_SIZE})),[world.pixels]);
+  const latest = useRef({ world, pixelIndex, pending, brush, onCameraChange, peers, onCursor });
+  latest.current = { world, pixelIndex, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
 
   const drawCursors = useCallback(() => {
@@ -84,7 +86,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const left = -c.x / c.z, top = -c.y / c.z, right = (width - c.x) / c.z, bottom = (height - c.y) / c.z;
     const visible = (pixel: Pixel) => pixel.x * GRID_SIZE + GRID_SIZE >= left && pixel.x * GRID_SIZE <= right && pixel.y * GRID_SIZE + GRID_SIZE >= top && pixel.y * GRID_SIZE <= bottom;
     const paint = (cells: Pixel[], opacity = 1) => { context.setTransform(1, 0, 0, 1, 0, 0); context.globalAlpha = opacity; for (const pixel of cells) if (visible(pixel)) { context.fillStyle = pixel.color; const x = Math.round((pixel.x * GRID_SIZE * c.z + c.x) * ratio), y = Math.round((pixel.y * GRID_SIZE * c.z + c.y) * ratio), right = Math.round(((pixel.x + 1) * GRID_SIZE * c.z + c.x) * ratio), bottom = Math.round(((pixel.y + 1) * GRID_SIZE * c.z + c.y) * ratio); context.fillRect(x, y, right - x, bottom - y); } context.globalAlpha = 1; context.setTransform(ratio * c.z, 0, 0, ratio * c.z, ratio * c.x, ratio * c.y); };
-    paint(data.world.pixels);
+    paint(data.pixelIndex.query({x:left,y:top,width:right-left,height:bottom-top}));
     // Presence is a temporary preview. Only /api/paint can save shared pixels.
     const now = Date.now();
     for (const peer of data.peers) if (peer.tool === "paint" && peer.stroke?.length) {

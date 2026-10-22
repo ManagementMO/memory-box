@@ -26,7 +26,7 @@
 - Source-linked responses and exact-place links must retain their actual coordinates after travel between areas.
 - Index caching must refresh on real artwork changes without redrawing it for cursor movement or dropping edge cells.
 
-### Task1: Geographic model and indexed artwork
+### Task 1: Geographic model and indexed artwork
 
 **Files:** Create `src/lib/client/world-atlas.ts`, `src/lib/client/spatial-index.ts`; test `tests/world-atlas.test.ts`, `tests/spatial-index.test.ts`; modify `src/components/world-canvas.tsx` and rendering regression tests.
 
@@ -37,7 +37,7 @@
 - [ ] Use cached pixel buckets in the artwork draw path; assert distant cells are excluded and all cursor/preview redraw regressions stay green.
 - [ ] Commit the independently tested model/index slice.
 
-### Task2: World map, geographic landscape and travel
+### Task 2: World map, geographic landscape and travel
 
 **Files:** Create `src/components/world-map.tsx`, `src/components/world-geography.tsx`, `src/app/world-atlas.css`; modify app/canvas and layout CSS import; test app handlers and browser navigation.
 
@@ -49,7 +49,7 @@
 - [ ] Distribute Wander across actual occupied places, maintaining actual-source previews and unseen history.
 - [ ] Verify desktop/mobile/320px geometry and functional navigation, two-visitor creation/paint/text/photo and reload; commit.
 
-### Task3: Verify and release
+### Task 3: Verify and release
 
 **Files:** Browser suites, direction/design context and this execution record; no broad implementation cleanup.
 
