@@ -11,9 +11,10 @@ import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
 import { campusArrival } from "@/lib/client/campus-arrival";
 import { CANVAS_LEVELS, canvasLevel, initialCampusCamera, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
 import { MemoryCard } from "./memory-card";
+import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 
 export interface CameraView extends Camera { width: number; height: number }
-export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore"; points?: FramePoint[]; camera?: CameraView }
+export interface CameraCommand { key: number; type: "fit" | "focus" | "frame" | "restore" | "place"; points?: FramePoint[]; camera?: CameraView; place?: SharedPlace }
 export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: number; pixels?: Pixel[]; memory?: Memory }
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
@@ -158,6 +159,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const element = board.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
+      if (initialized.current && element.clientWidth === viewport.current.width && element.clientHeight === viewport.current.height) return;
       stopCamera();
       if (!initialized.current) { initialized.current = true; entryView(false, true); }
       else {
@@ -171,7 +173,15 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   }, [applyCamera, entryView, stopCamera]);
 
   useEffect(() => {
-    if (command.type === "restore" && command.camera && board.current) {
+    // A link/explicit navigation wins even if the first resize has not arrived.
+    if (command.key > 0 && !initialized.current && board.current) {
+      initialized.current = true;
+      viewport.current = { width: board.current.clientWidth, height: board.current.clientHeight };
+    }
+    if (command.type === "place" && command.place && board.current) {
+      initialized.current = true;
+      animateCamera(sharedPlaceCamera(command.place, { width: board.current.clientWidth, height: board.current.clientHeight }), false);
+    } else if (command.type === "restore" && command.camera && board.current) {
       animateCamera({ ...command.camera, x: command.camera.x + (board.current.clientWidth - command.camera.width) / 2, y: command.camera.y + (board.current.clientHeight - command.camera.height) / 2 });
     } else if (command.type === "fit" || command.key === 0) entryView(command.key !== 0, command.key === 0);
     else if (command.points?.length) framePoints(command.points, command.type === "focus");
