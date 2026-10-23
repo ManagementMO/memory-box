@@ -114,4 +114,37 @@ describe("build tool source and destination",()=>{
     expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
     expect(harness.api).not.toHaveBeenCalled();
   });
+
+  it("collapses a request to source-bound tools and can restore the complete details",async()=>{
+    await join("a");
+    const toggle=host.querySelector<HTMLButtonElement>('[aria-label="Collapse build details"]');
+    expect(toggle).not.toBeNull();toggle!.focus();await click('[aria-label="Collapse build details"]');
+    expect(host.querySelector('.panel-build.is-build-compact')).not.toBeNull();
+    expect(host.querySelector('.panel-header h2')?.textContent).toContain("Build a");
+    expect(host.querySelector('.build-request')?.closest('[hidden]')).not.toBeNull();
+    expect(host.querySelectorAll('.build-tools button')).toHaveLength(3);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe("Expand build details");
+    await click('[aria-label="Expand build details"]');
+    expect(host.querySelector('.panel-build.is-build-compact')).toBeNull();
+    expect(host.querySelector('.build-request')?.closest('[hidden]')).toBeNull();
+    expect(host.querySelector('.build-request')?.textContent).toBe("Help make an outfit.");
+  });
+
+  it("retains compact mode on a same-build tool return, but opens a different request in full",async()=>{
+    await join("a");await click('[aria-label="Collapse build details"]');
+    await click('.build-tools .button-primary');await click('.joined-build-return');
+    expect(host.querySelector('.panel-build.is-build-compact')).not.toBeNull();
+    expect(host.querySelector('.panel-header h2')?.textContent).toContain("Build a");
+    await join("b");
+    expect(host.querySelector('.panel-build.is-build-compact')).toBeNull();
+    expect(host.querySelector('.build-request')?.closest('[hidden]')).toBeNull();
+  });
+
+  it.each(["closed","removed"])("releases compact tools when their invitation is %s",async(state)=>{
+    await join("a");await click('[aria-label="Collapse build details"]');
+    harness.world={...harness.world!,memories:state==="closed"?harness.world!.memories.map(m=>m.id==="a"?{...m,isBuildInvitation:false,version:2}:m):harness.world!.memories.filter(m=>m.id!=="a")};
+    await act(async()=>root.render(createElement(MemoryBoxApp)));
+    expect(host.querySelector('.build-tools')).toBeNull();expect(host.querySelector('.build-unavailable')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Expand build details"]')).toBeNull();
+  });
 });

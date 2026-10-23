@@ -52,6 +52,7 @@ export function MemoryBoxApp() {
   const [panel, setPanel] = useState<Panel>(null), [selectedId, setSelectedId] = useState<string | null>(null);
   const [landmarkIndex, setLandmarkIndex] = useState(0);
   const [joinedBuildId,setJoinedBuildId] = useState<string|null>(null);
+  const [buildCollapsed,setBuildCollapsed]=useState(false);
   const visited = useRef<string[]>([]);
   const [draft, setDraft] = useState<MemoryDraft | null>(null), [pending, setPending] = useState<Pending | null>(null);
   const [shape, setShape] = useState<ShapeId>("goose"), [paintColor, setPaintColor] = useState("#F3617C");
@@ -132,7 +133,8 @@ export function MemoryBoxApp() {
   const landmarks=campusAvailable?[...WATERLOO_LANDMARKS,...LIVING_LANDMARKS]:LIVING_LANDMARKS;
   const landmark = landmarks[landmarkIndex % landmarks.length];
   const invitationLandmark=useRef(landmark);invitationLandmark.current=landmark;
-  const panelTitle = panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.isBuildInvitation ? "Start a build" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
+  const compactBuild=panel==="build"&&buildCollapsed&&!!selected?.isBuildInvitation;
+  const panelTitle = compactBuild&&selected?originalLabel(selected):panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.isBuildInvitation ? "Start a build" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
   const canWrite = !!identity && connection === "live";
   const isAnswer = (data: SearchResponse | AnswerResponse | null): data is AnswerResponse => !!data && "status" in data;
   const currentSearchData = useMemo(() => searchData && world ? projectSearch(searchData, world.memories) : null, [searchData, world]);
@@ -225,8 +227,14 @@ export function MemoryBoxApp() {
   const joinBuild = (id:string) => {
     if (brushPixels.length && joinedBuildId!==id) { setPanel("paint");setAnnouncement("Add or clear your pixel preview before moving to another build.");return; }
     const memory=world?.memories.find(item=>item.id===id);
+    const compact=joinedBuildId===id&&buildCollapsed;
+    setBuildCollapsed(compact);
     setJoinedBuildId(id);setSelectedId(id);setPending(null);setPanel("build");setBackToSearch(false);setBackToDraft(false);setFormError("");setAnnouncement("");setArrival(null);
-    if(memory){setActiveScene(memory.sceneId);focusNeighborhood(memory,"compose");}
+    if(memory){setActiveScene(memory.sceneId);focusNeighborhood(memory,compact?"peek":"compose");}
+  };
+  const toggleBuildDetails=()=>{
+    if(!selected?.isBuildInvitation)return;
+    const compact=!buildCollapsed;setBuildCollapsed(compact);focusNeighborhood(selected,compact?"peek":"compose");
   };
   const visitLandmark = (index: number) => {
     setLandmarkIndex(index); const place=landmarks[index];setActiveScene(place.sceneId);setSelectedId(null);setPending(null);setPanel("together");
@@ -589,7 +597,7 @@ export function MemoryBoxApp() {
       {presence.peers.some(peer=>peer.tool==="paint")?<button type="button" className="text-button live-build-link" onClick={followLivePainter}><Paintbrush size={16}/>Visit a live painter<ArrowUpRight size={14}/></button>:null}
       <h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("paint")}><Paintbrush size={16}/>Paint there</button><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("text")}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>useLandmarkTool("image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div>
     </div>;
-    if(panel==="build")return <BuildWorkbench memory={selected} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
+    if(panel==="build")return <BuildWorkbench memory={selected} compact={!!compactBuild} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
     if (panel === "compose" && draft) return <MemoryComposer draft={draft} onChange={next => { setDraft(next); setFormError(""); }} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => { draftScene.current = activeScene; openMemory(id, false, true); }} onPreview={previewMemory} busy={busy} error={formError} />;
     if (panel === "inspect") return renderInspector();
     if (panel === "search") return renderSearch();
@@ -606,10 +614,11 @@ export function MemoryBoxApp() {
   const PanelIcon = panel === "share" ? MapPin : panel === "paint" ? Paintbrush : panel === "people" || panel === "together" || panel === "build" ? UsersRound : panel === "search" ? searchMode === "ask" ? MessageCircle : Search : panel === "profile" ? UserRound : panel === "compose" ? draft?.type === "image" ? ImageIcon : StickyNote : panel === "report" ? Flag : StickyNote;
   const inlineReply=panel==="compose"&&!!parent&&!draft?.editId;
   const inlineBuild=panel==="build"&&!!selected;
-  const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}`} aria-label={panelTitle}>
+  const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}${compactBuild?" is-build-compact":""}`} aria-label={panelTitle}>
     <div className="panel-mobile-handle"/>
     <div className="panel-header">
-      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="world"?<AreaMark emblem="map"/>:panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span>{panelTitle}</h2>
+      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="world"?<AreaMark emblem="map"/>:panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span><span className="panel-title-text">{panelTitle}</span></h2>
+      {panel==="build"&&selected?.isBuildInvitation?<button type="button" className="icon-button" aria-label={buildCollapsed?"Expand build details":"Collapse build details"} aria-expanded={!buildCollapsed} aria-controls={`build-details-${selected.id}`} onClick={toggleBuildDetails}>{buildCollapsed?<Maximize2 size={16}/>:<Minimize2 size={16}/>}</button>:null}
       {panel==="inspect"?<button type="button" className="icon-button panel-expand" aria-label={panelExpanded?"Collapse panel":"Expand panel"} onClick={()=>setPanelExpanded(!panelExpanded)}>{panelExpanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</button>:null}
       <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18}/></button>
     </div>
