@@ -58,7 +58,17 @@ export function json(data: unknown, status = 200) {
   return Response.json(data, {status, headers: {"Cache-Control": "no-store"}});
 }
 
-export function errorResponse(error: unknown) {
+export interface RequestDiagnostic {
+  requestId:string;
+  scope:"memory_publish";
+  phase:"origin"|"authorize"|"validate"|"image"|"create"|"index";
+}
+
+function failureDiagnostic(error:unknown,context?:RequestDiagnostic){
+  return{...(error instanceof DatabaseError?databaseDiagnostic(error):{kind:error instanceof Error&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)?error.name:"unknown"}),...context};
+}
+
+export function errorResponse(error: unknown, context?:RequestDiagnostic) {
   if (error instanceof ApiError) return json({error: error.message, code: error.code}, error.status);
   if (error instanceof z.ZodError) return json({
     error: error.issues[0]?.message || "Check the contribution and try again.",
@@ -78,11 +88,14 @@ export function errorResponse(error: unknown) {
   }
   if (/source_unavailable|asset_unavailable|not.found|not.available|not.published/i.test(message)) return json({error: "This memory is no longer available.", code: "not_found"}, 404);
   if (/not.owner|forbidden|permission|unauthorized/i.test(message)) return json({error: "Only the author can change this memory.", code: "forbidden"}, 403);
-  if (/^(?:VERSION_CONFLICT|IDEMPOTENCY_CONFLICT|CLIENT_ID_REUSED)$/i.test(message)) return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
-  console.error("Memory Box request failed",error instanceof DatabaseError?databaseDiagnostic(error):{kind:error instanceof Error&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)?error.name:"unknown"});
+  if (/^(?:VERSION_CONFLICT|IDEMPOTENCY_CONFLICT|CLIENT_ID_REUSED)$/i.test(message)) {
+    console.warn("Memory Box save conflict",{...failureDiagnostic(error,context),conflict:message.toUpperCase()});
+    return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
+  }
+  console.error("Memory Box request failed",failureDiagnostic(error,context));
   return json({error: "The box could not finish that request. Your draft is still here; try again.", code: "service_unavailable"}, 503);
 }
 
-export async function route(run: () => Promise<Response>) {
-  try { return await run(); } catch (error) { return errorResponse(error); }
+export async function route(run: () => Promise<Response>, diagnostic?:()=>RequestDiagnostic) {
+  try { return await run(); } catch (error) { return errorResponse(error,diagnostic?.()); }
 }

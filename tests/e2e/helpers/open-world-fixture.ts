@@ -18,8 +18,8 @@ export async function sameOrigin<T>(page: Page, path: string, body?: unknown, me
     const response = await fetch(path, { method, headers: {
       Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json",
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    return { status: response.status, body: await response.json() };
-  }, { path, body, method }) as Promise<{ status: number; body: T }>;
+    return { status: response.status, body: await response.json(), requestId:response.headers.get("X-Memory-Box-Request-Id") };
+  }, { path, body, method }) as Promise<{ status: number; body: T; requestId:string|null }>;
 }
 
 export class WorldFixture {
