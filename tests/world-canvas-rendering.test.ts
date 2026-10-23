@@ -121,4 +121,14 @@ describe("canvas redraw boundaries", () => {
     await act(async()=>vi.advanceTimersByTime(1800));
     expect(host.querySelector('.is-arriving')).toBeNull();
   });
+
+  it("does not traverse distant persisted pixels when the local camera moves",async()=>{
+    let reads=0;
+    const pixels=Array.from({length:10000},(_,i)=>({get x(){reads++;return i===0?10:5000+i%100;},y:i===0?10:5000+Math.floor(i/100),color:"#123456"}));
+    await render({world:{...props.world,pixels}});
+    reads=0;context(".world-pixels").fillRect.mockClear();
+    await render({command:{key:2,type:"restore",camera:{x:12,y:12,z:1,width:1200,height:900}}});
+    expect(context(".world-pixels").fillRect).toHaveBeenCalledTimes(1);
+    expect(reads).toBeLessThan(100);
+  });
 });

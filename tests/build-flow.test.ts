@@ -29,13 +29,15 @@ describe("build tool source and destination",()=>{
   beforeEach(async()=>{
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
     vi.stubGlobal("matchMedia",()=>({matches:true,addEventListener:()=>{},removeEventListener:()=>{}}));
+    vi.stubGlobal("ResizeObserver",class{observe(){}disconnect(){}});
+    vi.spyOn(HTMLCanvasElement.prototype,"getContext").mockReturnValue(null);
     harness.world={worldId:"commons",revision:1,epoch:1,width:120000,height:120000,gridSize:6,paintingPaused:false,pixels:[],events:[],memories:[invitation("a",400),invitation("b",4000)]};
     harness.api.mockReset();harness.api.mockResolvedValue({operationId:"paint-at-a"});harness.refresh.mockResolvedValue(harness.world);
     host=document.createElement("div");document.body.append(host);root=createRoot(host);
     await act(async()=>root.render(createElement(MemoryBoxApp)));
     harness.canvas!.onCameraChange?.({x:0,y:0,z:1,width:1440,height:844});
   });
-  afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();});
+  afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
   it("attaches a thought to the build of its accepted paint, even after visiting another build",async()=>{
     await join("a");await click(".build-workbench .button-primary");
@@ -58,5 +60,58 @@ describe("build tool source and destination",()=>{
     expect(harness.canvas!.command.type).toBe("frame");
     expect(harness.canvas!.command.points).toEqual([{x:place.x,y:place.y,width:place.width,height:place.height}]);
     expect(harness.canvas!.activeScene).toBe(place.sceneId);
+  });
+
+  it("opens an actual world map and visits a different real neighborhood",async()=>{
+    await click('[aria-label="Explore canvas"]');
+    expect(host.querySelector('.world-map-panel')).not.toBeNull();
+    await click('.world-place-list [data-place-id="waterloo"]');
+    expect(host.querySelector('.world-map-panel')).toBeNull();
+    expect(harness.canvas!.command.type).toBe("frame");
+    const destination=harness.canvas!.command.points![0];
+    expect(destination.x).toBeGreaterThan(3000);expect(destination.x).toBeLessThan(4100);
+  });
+
+  it("starts a place on open ground as an unpublished invitation",async()=>{
+    await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(harness.api).not.toHaveBeenCalled();
+    expect(host.querySelector<HTMLInputElement>('.build-invitation-toggle input')?.checked).toBe(true);
+    expect(harness.canvas!.command.type).toBe("frame");
+    const destination=harness.canvas!.command.points![0];
+    expect([400,4000].every(x=>Math.abs(destination.x-x)>250||Math.abs(destination.y-300)>250)).toBe(true);
+  });
+
+  it("can start a place after opening and closing an untouched note",async()=>{
+    await click('[aria-label="Leave"]');
+    await click('[aria-label="Close panel"]');
+    await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(host.querySelector<HTMLInputElement>('.build-invitation-toggle input')?.checked).toBe(true);
+    expect(harness.canvas!.command.type).toBe("frame");
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("keeps a source-linked draft even before any words are typed",async()=>{
+    await join("a");await click('.build-tools .button:nth-child(2)');
+    await click('[aria-label="Close panel"]');await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
+    expect(host.querySelector<HTMLInputElement>('.build-invitation-toggle input')?.checked).toBe(false);
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("resumes a parked contribution instead of replacing it with a new place",async()=>{
+    await join("a");await click('.build-tools .button:nth-child(2)');
+    // Use the real controlled textarea so the retained draft is app state.
+    const textarea=host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')!;
+    expect(textarea).not.toBeNull();
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!;
+    await act(async()=>{setter.call(textarea,"A draft I want to keep");textarea.dispatchEvent(new Event("input",{bubbles:true}));});
+    await click('[aria-label="Close panel"]');await click('[aria-label="Explore canvas"]');
+    await click('[aria-label="Start a place"]');
+    expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("A draft I want to keep");
+    expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
+    expect(harness.api).not.toHaveBeenCalled();
   });
 });
