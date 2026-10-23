@@ -36,6 +36,7 @@ describe("canvas redraw boundaries", () => {
   };
   beforeEach(() => {
     vi.useFakeTimers(); vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    localStorage.clear();window.history.replaceState(null,"","/");
     vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
@@ -56,6 +57,58 @@ describe("canvas redraw boundaries", () => {
   afterEach(async () => {
     await act(async () => root.unmount()); host.remove();
     vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
+  });
+
+  const mobileResize=()=>{
+    vi.spyOn(HTMLElement.prototype,"clientWidth","get").mockReturnValue(390);
+    vi.spyOn(HTMLElement.prototype,"clientHeight","get").mockReturnValue(608);
+    vi.stubGlobal("ResizeObserver",class{
+      constructor(private callback:()=>void){}observe(element:HTMLElement){if(element.classList.contains("world-board"))this.callback();}disconnect(){}
+    });
+  };
+
+  it("discloses phone view tools and returns focus after a preset or Escape",async()=>{
+    mobileResize();await render({command:{key:0,type:"fit"}});
+    const toggle=host.querySelector<HTMLButtonElement>('[aria-label="View controls"]');
+    expect(toggle).not.toBeNull();expect(toggle!.getAttribute("aria-expanded")).toBe("false");
+    expect(host.querySelector<HTMLElement>('#canvas-view-menu')?.hidden).toBe(true);
+    expect(host.querySelector('[aria-label="Zoom in"]')?.closest('[hidden]')).not.toBeNull();
+    await act(async()=>toggle!.click());
+    const world=host.querySelector<HTMLButtonElement>('[aria-label="World view"]')!;
+    expect(world).not.toBeNull();
+    const board=host.querySelector<HTMLElement>('.world-board')!;
+    const before={x:(195-Number(board.dataset.cameraX))/Number(board.dataset.cameraZoom),y:(304-Number(board.dataset.cameraY))/Number(board.dataset.cameraZoom)};
+    await act(async()=>world.click());
+    expect(board.dataset.zoomLevel).toBe("whole");expect(toggle!.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(toggle);
+    expect((195-Number(board.dataset.cameraX))/Number(board.dataset.cameraZoom)).toBeCloseTo(before.x);
+    expect((304-Number(board.dataset.cameraY))/Number(board.dataset.cameraZoom)).toBeCloseTo(before.y);
+    await act(async()=>toggle!.click());
+    await act(async()=>world.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+    expect(toggle!.getAttribute("aria-expanded")).toBe("false");expect(document.activeElement).toBe(toggle);
+  });
+
+  it("lets a valid shared link win over a stored return location on first resize",async()=>{
+    mobileResize();
+    localStorage.setItem("memory-box:canvas-view:v1",JSON.stringify({version:1,worldId:"commons",epoch:1,x:8000,y:3200,z:.7}));
+    window.history.replaceState(null,"","#at=-3200,2400,0.9");
+    await render({command:{key:0,type:"fit"}});
+    const board=host.querySelector<HTMLElement>('.world-board')!;
+    expect(Number(board.dataset.cameraZoom)).toBe(.9);
+    expect((195-Number(board.dataset.cameraX))/.9).toBeCloseTo(-3200);
+    expect((304-Number(board.dataset.cameraY))/.9).toBeCloseTo(2400);
+  });
+
+  it("keeps camera interaction working when browser view storage is blocked",async()=>{
+    mobileResize();
+    vi.spyOn(Storage.prototype,"getItem").mockImplementation(()=>{throw new DOMException("Blocked","SecurityError");});
+    vi.spyOn(Storage.prototype,"setItem").mockImplementation(()=>{throw new DOMException("Full","QuotaExceededError");});
+    await render({command:{key:0,type:"fit"}});
+    await act(async()=>vi.advanceTimersByTime(600));
+    const board=host.querySelector<HTMLElement>('.world-board')!;
+    expect(Number(board.dataset.cameraZoom)).toBeGreaterThan(0);
+    await render({command:{key:1,type:"restore",camera:{x:20,y:30,z:1,width:390,height:608}}});
+    expect(board.dataset.cameraX).toBe("20");expect(board.dataset.cameraY).toBe("30");
   });
 
   it("does not redraw 17,000 unchanged artwork cells when a cursor moves or ages", async () => {

@@ -37,7 +37,7 @@
 .living-mosaic-app .world-start-place { margin-top:17px; min-height:44px; justify-content:flex-start; }
 .living-mosaic-app .world-start-place .area-mark { width:18px; height:18px; margin-left:auto; }
 @media(max-width:700px) {
- .living-mosaic-app .world-location { top:48px; height:44px; left:8px; max-width:84px; padding:4px 7px; }
+ .living-mosaic-app .world-location { top:4px; height:44px; left:8px; max-width:84px; padding:4px 7px; }
  .living-mosaic-app .world-location-name,.living-mosaic-app .world-location>.pixel-icon { display:none; }
  .living-mosaic-app .world-place-label { min-height:44px; font-size:14px; }
  .living-mosaic-app .context-panel.panel-world { top:auto; left:8px; right:8px; bottom:82px; width:auto; max-height:min(68dvh,490px); }

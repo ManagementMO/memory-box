@@ -75,7 +75,7 @@ export const WorldGeography=memo(function WorldGeography({areas,quiet,labelBlock
       })}
       {areas.map(area=><g key={area.id} className="world-terrain-area"><path d={areaContour(area,150)} fill={area.color} opacity=".12"/><path d={areaContour(area,40)} fill={area.color} opacity=".27"/><path className="world-terrain-edge" d={areaContour(area,90)}/></g>)}
     </g></svg>
-    <button ref={location} type="button" className="world-location canvas-overlay" aria-label="Open world map" onClick={onWorldMap}><AreaMark emblem="map"/><span>World</span><ChevronDown size={12}/><span ref={locationName} className="world-location-name">Open ground</span></button>
+    <button ref={location} type="button" className="world-location canvas-overlay" aria-label="Open world map" onClick={onWorldMap}><AreaMark emblem="map"/><span>Map</span><ChevronDown size={12}/><span ref={locationName} className="world-location-name">Open ground</span></button>
     {areas.map(area=><button type="button" hidden key={area.id} ref={element=>{if(element)buttons.current.set(area.id,element);else buttons.current.delete(area.id);}} className="world-place-label canvas-overlay" data-area-id={area.id} aria-label={`Visit ${area.title}`} title={area.title} style={{"--area-paper":area.color} as CSSProperties} onClick={()=>onVisit?.(area)}><AreaMark emblem={area.emblem}/><span>{area.title}</span>{area.openBuilds?<i aria-label={`${area.openBuilds} open builds`}/>:null}</button>)}
   </div>;
 });
