@@ -84,6 +84,7 @@ export class WorldFixture {
   }
 
   async connect(page: Page) {
+    if(!this.contexts.includes(page.context()))this.contexts.push(page.context());
     if (process.env.MB_E2E_PROVISIONED === "1") await this.provision(page);
     page.on("response", response => {
       if (response.request().method() !== "POST" || !response.ok()) return;
@@ -148,6 +149,12 @@ export class WorldFixture {
     const check = (error: unknown, step: string) => { if (error) failures.push(step); };
     const tracked = await Promise.allSettled(this.pending);
     if (tracked.some(result => result.status === "rejected")) failures.push("track application response");
+    // Stop every owned browser (including the primary page) before revoking
+    // identities. Otherwise a background paint-turn poll can recreate a
+    // profile while Auth cascades its parent away during teardown.
+    const closed=await Promise.allSettled(this.contexts.map(context=>context.close()));
+    if(closed.some(result=>result.status==="rejected"))failures.push("stop owned browsers before revocation");
+    this.contexts=[];
     const paintIds = new Set(this.operations.keys());
     // Read actual committed before-cells, not a pre-request screenshot that can
     // race another visitor. Include undo revisions: undoing B may reveal A's
@@ -212,8 +219,22 @@ export class WorldFixture {
       this.cleanupCounts.publicEventsRemoved += removed.count ?? 0;
     }
     if (paintIds.size || this.memories.size) {
-      const world = await this.db.from("worlds").select("revision,public_epoch").eq("id", "commons").single();
+      let world = await this.db.from("worlds").select("revision,public_epoch").eq("id", "commons").single();
       check(world.error, "read cleanup revision");
+      // Direct fixture restoration must invalidate revision-checked public
+      // pixel reuse too. CAS preserves any intervening real contributor's
+      // revision rather than writing an older counter over it.
+      if(this.cleanupCounts.pixelsRestored>0&&world.data){
+        let advanced=false;
+        for(let attempt=0;attempt<5&&world.data;attempt++){
+          const next=await this.db.from("worlds").update({revision:world.data.revision+1}).eq("id","commons").eq("revision",world.data.revision).select("revision,public_epoch").maybeSingle();
+          if(next.error){check(next.error,"advance restored pixel revision");break;}
+          if(next.data){world={...world,data:next.data};advanced=true;break;}
+          world=await this.db.from("worlds").select("revision,public_epoch").eq("id","commons").single();
+          if(world.error){check(world.error,"reread cleanup revision");break;}
+        }
+        if(!advanced)failures.push("fence restored pixel revision");
+      }
       if (world.data) {
         const notice = await this.db.channel("world:commons", { config: { private: true } }).httpSend("changed", {
           revision: world.data.revision, epoch: world.data.public_epoch, kind: "resync",
@@ -221,7 +242,6 @@ export class WorldFixture {
         check(!notice.success, "notify exact resource cleanup");
       }
     }
-    for (const context of this.contexts) await context.close();
     for (const actor of this.actors) {
       check((await this.db.from("rate_budgets").delete().eq("actor_id", actor)).error, "remove own guest budget");
       check((await this.db.auth.admin.deleteUser(actor)).error, "remove own guest identity");

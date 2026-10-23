@@ -1,6 +1,7 @@
 import {describe,expect,it,vi} from "vitest";
 import {z} from "zod";
 import {assertOrigin,errorResponse,MAX_JSON_BYTES,readJson} from "../src/lib/server/http";
+import {DatabaseError} from "../src/lib/server/database";
 
 describe("same-origin mutations",()=>{
   it("accepts the actual localhost origin when Next binds to all interfaces",()=>{
@@ -53,6 +54,17 @@ describe("bounded JSON bodies",()=>{
 });
 
 describe("expected authorization failures",()=>{
+  it("returns an invalid session when a verified actor is revoked before a dependent database call",async()=>{
+    const error=new DatabaseError("AUTH_REQUIRED","PT401");
+    const response=errorResponse(error);
+    expect(response.status).toBe(401);
+    expect((await response.json()).code).toBe("invalid_session");
+  });
+  it("handles only the exact legacy missing-auth-parent constraint as a revoked session",async()=>{
+    const error=new DatabaseError('insert or update on table "profiles" violates foreign key constraint "profiles_id_fkey"',"23503");
+    const response=errorResponse(error);
+    expect(response.status).toBe(401);expect((await response.json()).code).toBe("invalid_session");
+  });
   it("explains a blank invitation rejected on an older client's edit",async()=>{
     const response=errorResponse(new Error('new row for relation "memories" violates check constraint "build_invitation_has_words"'));
     expect(response.status).toBe(400);
@@ -62,5 +74,26 @@ describe("expected authorization failures",()=>{
     const response=errorResponse(new Error("ACCOUNT_SUSPENDED"));
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({error:"This session cannot contribute right now.",code:"session_suspended"});
+  });
+});
+
+describe("safe database diagnostics",()=>{
+  it("keeps operation and SQLSTATE without copying messages, request arguments or credentials",async()=>{
+    const log=vi.spyOn(console,"error").mockImplementation(()=>{});
+    try{
+      const error=Object.assign(new DatabaseError("private story, token=secret, id=private-actor","57014"),{operation:"mb_snapshot",details:{Authorization:"Bearer secret"}});
+      const response=errorResponse(error);
+      expect(response.status).toBe(503);expect((await response.json()).code).toBe("service_unavailable");
+      expect(log).toHaveBeenCalledWith("Memory Box request failed",{kind:"DatabaseError",operation:"mb_snapshot",code:"57014"});
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret|private story|private-actor|Authorization/);
+    }finally{log.mockRestore();}
+  });
+  it("does not turn other integrity failures into a session error or log unbounded diagnostic fields",async()=>{
+    const log=vi.spyOn(console,"error").mockImplementation(()=>{});
+    try{
+      const error=Object.assign(new DatabaseError('foreign key constraint "assets_owner_id_fkey"',"23503\nsecret"),{operation:"mb_snapshot\nBearer secret"});
+      expect(errorResponse(error).status).toBe(503);
+      expect(log).toHaveBeenCalledWith("Memory Box request failed",{kind:"DatabaseError"});
+    }finally{log.mockRestore();}
   });
 });

@@ -1,5 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Memory, NewMemory, Pixel, SceneId, SearchResponse, WorldSnapshot } from "../types";
+import {DatabaseError} from "./database-error";
+import {createSnapshotReader,type SnapshotHead} from "./snapshot-reader";
+export {DatabaseError} from "./database-error";
 
 // This module is imported only by server routes and explicit operator scripts.
 // The secret is never read at build time or copied to a public environment name.
@@ -15,13 +18,9 @@ export function adminClient(): SupabaseClient {
   return client;
 }
 
-export class DatabaseError extends Error {
-  constructor(message: string, public code: string) { super(message); this.name = "DatabaseError"; }
-}
-
 async function rpc<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await adminClient().rpc(name, args);
-  if (error) throw new DatabaseError(error.message, error.code || "database_error");
+  if (error) throw new DatabaseError(error.message, error.code || "database_error",name);
   return data as T;
 }
 
@@ -41,7 +40,7 @@ export interface PaintCooldown extends PaintTurn { status: "cooldown"; retryAfte
 export type PaintResult = PaintAcceptance | PaintCooldown;
 export interface UndoAcceptance { operationId: string; revision: number; restored: number; skipped: number }
 
-export const getSnapshot = () => rpc<WorldSnapshot>("mb_snapshot");
+export const getSnapshot = createSnapshotReader({readHead:()=>rpc<SnapshotHead>("mb_snapshot_head"),load:()=>rpc<WorldSnapshot>("mb_snapshot")});
 export const getChanges = (after: number, epoch: number) => rpc<{ resync: boolean; revision: number; epoch: number; pixels?: Pixel[] }>("mb_changes", { p_after: after, p_epoch: epoch });
 export const getProfile = (actorId: string) => rpc<ProfileRecord>("mb_profile", { p_actor: actorId });
 export const updateProfile = (actorId: string, name: string) => rpc<ProfileRecord>("mb_profile", { p_actor: actorId, p_name: name });
@@ -60,7 +59,7 @@ export const deleteMemory = (actorId: string, id: string) => rpc<{ assetId: stri
 export const createAsset = (actorId: string, input: { name: string; mime: string; size: number }) => rpc<AssetRecord>("mb_create_asset", { p_actor: actorId, p_name: input.name, p_mime: input.mime, p_size: input.size });
 export async function getAsset(id: string): Promise<AssetRecord | null> {
   const { data, error } = await adminClient().from("assets").select("*").eq("id", id).maybeSingle();
-  if (error) throw new DatabaseError(error.message, error.code);
+  if (error) throw new DatabaseError(error.message, error.code,"assets.read");
   return data as AssetRecord | null;
 }
 export const markAssetReady = (actorId: string, id: string, metadata: { path: string; mime: string; width: number; height: number; size: number }) => rpc<AssetRecord>("mb_ready_asset", { p_actor: actorId, p_id: id, p_metadata: metadata });
@@ -89,6 +88,6 @@ export const createReport = (actorId: string, input: { memoryId?: string; bounds
 export const moderate = (actorId: string, action: "hide" | "restore" | "pause" | "resume" | "clear" | "suspend" | "unsuspend", options: { memoryId?: string; targetActorId?: string; bounds?: { x: number; y: number; width: number; height: number } } = {}) => rpc<{ revision: number; epoch: number }>("mb_moderate", { p_actor: actorId, p_action: action, p_memory_id: options.memoryId || null, p_target_actor: options.targetActorId || null, p_bounds: options.bounds || null });
 export async function listReports() {
   const { data, error } = await adminClient().from("reports").select("*").eq("state", "open").order("created_at", { ascending: false }).limit(100);
-  if (error) throw new DatabaseError(error.message, error.code);
+  if (error) throw new DatabaseError(error.message, error.code,"reports.list");
   return data;
 }
