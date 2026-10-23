@@ -17,6 +17,7 @@ import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
 import { spatialIndex,type WorldRect } from "@/lib/client/spatial-index";
 import { worldAreas, type WorldArea } from "@/lib/client/world-atlas";
 import {CANVAS_VIEW_KEY,decodeCanvasView,encodeCanvasView,initialWorldCamera} from "@/lib/client/canvas-arrival";
+import type {PlaceSignal} from "@/lib/client/world-activity";
 import { WorldGeography, type GeographyHandle } from "./world-geography";
 
 export interface CameraView extends Camera { width: number; height: number }
@@ -25,12 +26,12 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, onArea, onWorldMap, geographyQuiet=false }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, signals, onArea, onWorldMap, geographyQuiet=false }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
   brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
   floating?: {anchor:FramePoint;mode:"peek"|"compose";content:React.ReactNode};
-  areas?:WorldArea[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
+  areas?:WorldArea[];signals?:readonly PlaceSignal[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
@@ -400,7 +401,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       }
       publishPointer(point);
     }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
-    <WorldGeography ref={geography} areas={derivedAreas} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
+    <WorldGeography ref={geography} areas={derivedAreas} signals={signals} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />
     <div className="world-transformed" ref={transformed}>
       <svg className="memory-threads" width="1200" height="720" aria-hidden="true">{relationships.map(memory => {

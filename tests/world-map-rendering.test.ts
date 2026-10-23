@@ -60,4 +60,22 @@ describe("world map artwork cache",()=>{
     expect(host.querySelector<HTMLCanvasElement>(".world-map-viewport")!.width).toBe(640);
     expect(context(".world-map-viewport").strokeRect).toHaveBeenCalled();
   });
+
+  it("shows navigable actual activity without redrawing cached artwork as markers or painters change",async()=>{
+    const onSignal=vi.fn();
+    const area={id:"place:0:0",title:"Moon lake",emblem:"flag" as const,color:"#FFE9AF",x:0,y:0,width:1200,height:720,memoryIds:[],pixelCount:17000,openBuilds:0};
+    await render({areas:[area],onSignal});
+    const artwork=context(".world-map-canvas");reads=0;artwork.fillRect.mockClear();
+    const signal={id:"paint:1",areaId:area.id,x:400,y:300,kind:"paint" as const,expiresAt:22000};
+    await render({signals:[signal]});
+    const marker=host.querySelector<HTMLButtonElement>('.world-map-signal');expect(marker).not.toBeNull();
+    expect(marker!.getAttribute('aria-label')).toBe("New pixels in Moon lake");
+    await act(async()=>marker!.click());expect(onSignal).toHaveBeenCalledWith(signal);
+    expect(reads).toBe(0);expect(artwork.fillRect).not.toHaveBeenCalled();
+    await render({signals:[{...signal,id:"painting:1",kind:"painting",painters:2}]});
+    expect(host.querySelector('.world-place-activity')?.textContent).toContain("2 painting");
+    expect(reads).toBe(0);expect(artwork.fillRect).not.toHaveBeenCalled();
+    await render({signals:[]});expect(host.querySelector('.world-map-signal')).toBeNull();
+    expect(artwork.fillRect).not.toHaveBeenCalled();
+  });
 });

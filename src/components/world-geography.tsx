@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useCallback, useImperativeHandle, useLayoutEffect, useRef, type CSSProperties, type Ref } from "react";
+import { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, type CSSProperties, type Ref } from "react";
 import type { CameraView } from "./world-canvas";
 import { areaAtPoint, type AreaEmblem, type WorldArea } from "@/lib/client/world-atlas";
 import { screenToWorld } from "@/lib/client/canvas-geometry";
-import { ChevronDown } from "./pixel-icons";
+import { ChevronDown,Paintbrush,StickyNote } from "./pixel-icons";
+import {signalDescription,type PlaceSignal} from "@/lib/client/world-activity";
 import {intersects,type WorldRect} from "@/lib/client/spatial-index";
 
 /** A small bounded screen-space search; dense artwork simply wins the space. */
@@ -40,29 +41,30 @@ export function areaContour(area:WorldArea,margin=0){
 }
 
 export interface GeographyHandle { update:(view:CameraView)=>void }
-export const WorldGeography=memo(function WorldGeography({areas,quiet,labelBlocked,onVisit,onWorldMap,ref}:{
-  areas:readonly WorldArea[];quiet:boolean;labelBlocked:(rect:WorldRect)=>boolean;onVisit?:(area:WorldArea)=>void;onWorldMap?:()=>void;ref:Ref<GeographyHandle>;
+export const WorldGeography=memo(function WorldGeography({areas,signals,quiet,labelBlocked,onVisit,onWorldMap,ref}:{
+  areas:readonly WorldArea[];signals?:readonly PlaceSignal[];quiet:boolean;labelBlocked:(rect:WorldRect)=>boolean;onVisit?:(area:WorldArea)=>void;onWorldMap?:()=>void;ref:Ref<GeographyHandle>;
 }){
   const terrain=useRef<SVGGElement>(null),root=useRef<HTMLDivElement>(null),location=useRef<HTMLButtonElement>(null),locationName=useRef<HTMLSpanElement>(null);
   const buttons=useRef(new Map<string,HTMLButtonElement>()),lastView=useRef<CameraView|null>(null);
+  const signalsByArea=useMemo(()=>new Map(signals?.map(signal=>[signal.areaId,signal])),[signals]);
   const update=useCallback((view:CameraView)=>{
     lastView.current=view;
     terrain.current?.setAttribute("transform",`translate(${view.x} ${view.y}) scale(${view.z})`);
     const current=areaAtPoint(areas,screenToWorld(view,{x:view.width/2,y:view.height/2}));
     if(root.current)root.current.dataset.currentPlace=current?.id??"open-ground";
     if(locationName.current)locationName.current.textContent=current?.title??"Open ground";
-    if(location.current){location.current.hidden=quiet||!onWorldMap;location.current.setAttribute("aria-description",current?.title??"Open ground");}
+    if(location.current){location.current.hidden=quiet||!onWorldMap;location.current.setAttribute("aria-description",`${current?.title??"Open ground"}${signalsByArea.size?". Activity on the map":""}`);}
     const occupied:WorldRect[]=[];
     const candidates=areas.map(area=>({area,x:(area.x+area.width/2)*view.z+view.x,y:area.y*view.z+view.y-40}))
       .sort((a,b)=>(b.area.memoryIds.length*150+b.area.pixelCount)-(a.area.memoryIds.length*150+a.area.pixelCount));
     for(const {area,x,y} of candidates){
       const button=buttons.current.get(area.id);if(!button)continue;
       if(quiet||view.z>.82){button.hidden=true;continue;}
-      const w=Math.min(180,48+area.title.length*7),box=clearLabelBox({x,y},w,view,occupied,r=>labelBlocked({x:(r.x-view.x)/view.z,y:(r.y-view.y)/view.z,width:r.width/view.z,height:r.height/view.z}));
+      const w=Math.min(198,48+area.title.length*7+(signalsByArea.has(area.id)?18:0)),box=clearLabelBox({x,y},w,view,occupied,r=>labelBlocked({x:(r.x-view.x)/view.z,y:(r.y-view.y)/view.z,width:r.width/view.z,height:r.height/view.z}));
       button.hidden=!box;
       if(box){button.style.width=`${w}px`;button.style.left=`${box.x+w/2}px`;button.style.top=`${box.y}px`;occupied.push(box);}
     }
-  },[areas,quiet,onWorldMap,labelBlocked]);
+  },[areas,quiet,onWorldMap,labelBlocked,signalsByArea]);
   useImperativeHandle(ref,()=>({update}),[update]);
   useLayoutEffect(()=>{if(lastView.current)update(lastView.current);},[update]);
   return <div className="world-geography" ref={root}>
@@ -75,7 +77,7 @@ export const WorldGeography=memo(function WorldGeography({areas,quiet,labelBlock
       })}
       {areas.map(area=><g key={area.id} className="world-terrain-area"><path d={areaContour(area,150)} fill={area.color} opacity=".12"/><path d={areaContour(area,40)} fill={area.color} opacity=".27"/><path className="world-terrain-edge" d={areaContour(area,90)}/></g>)}
     </g></svg>
-    <button ref={location} type="button" className="world-location canvas-overlay" aria-label="Open world map" onClick={onWorldMap}><AreaMark emblem="map"/><span>Map</span><ChevronDown size={12}/><span ref={locationName} className="world-location-name">Open ground</span></button>
-    {areas.map(area=><button type="button" hidden key={area.id} ref={element=>{if(element)buttons.current.set(area.id,element);else buttons.current.delete(area.id);}} className="world-place-label canvas-overlay" data-area-id={area.id} aria-label={`Visit ${area.title}`} title={area.title} style={{"--area-paper":area.color} as CSSProperties} onClick={()=>onVisit?.(area)}><AreaMark emblem={area.emblem}/><span>{area.title}</span>{area.openBuilds?<i aria-label={`${area.openBuilds} open builds`}/>:null}</button>)}
+    <button ref={location} type="button" className="world-location canvas-overlay" aria-label="Open world map" onClick={onWorldMap}><AreaMark emblem="map"/><span>Map</span><ChevronDown size={12}/><span ref={locationName} className="world-location-name">Open ground</span>{signalsByArea.size?<span className="world-map-live-hint" aria-hidden="true"><Paintbrush size={12}/></span>:null}</button>
+    {areas.map(area=>{const signal=signalsByArea.get(area.id);return <button type="button" hidden key={area.id} ref={element=>{if(element)buttons.current.set(area.id,element);else buttons.current.delete(area.id);}} className="world-place-label canvas-overlay" data-area-id={area.id} aria-label={`Visit ${area.title}`} aria-description={signal?signalDescription(signal):undefined} title={area.title} style={{"--area-paper":area.color} as CSSProperties} onClick={()=>onVisit?.(area)}><AreaMark emblem={area.emblem}/><span>{area.title}</span>{signal?<span className="world-label-signal" aria-hidden="true">{signal.kind==="memory"?<StickyNote size={12}/>:<Paintbrush size={12}/>}</span>:area.openBuilds?<i aria-label={`${area.openBuilds} open builds`}/>:null}</button>;})}
   </div>;
 });

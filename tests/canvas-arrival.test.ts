@@ -28,6 +28,11 @@ describe("first arrival and public view persistence",()=>{
     const empty=initialWorldCamera(world(),[],{width:320,height:584});
     expect([empty.x,empty.y,empty.z].every(Number.isFinite)).toBe(true);expect(empty.z).toBeGreaterThan(0);
   });
+  it("chooses a meaningful story over an untitled, uncaptioned image as the first anchor",()=>{
+    const data=world({memories:[{...memory("blank-photo",9000,3000),type:"image",title:"",body:"",imageUrl:"/fixture.png"},memory("story",0,0,true)]});
+    const camera=initialWorldCamera(data,worldAreas(data.memories,[]),{width:390,height:608});
+    expect(100*camera.z+camera.x).toBeGreaterThan(60);expect(100*camera.z+camera.x).toBeLessThan(330);
+  });
   it("stores only a public center and scale, then restores that spot on another viewport",()=>{
     const data=world();
     const saved=encodeCanvasView(data,{x:-5405,y:-1940,z:.7,width:390,height:600});

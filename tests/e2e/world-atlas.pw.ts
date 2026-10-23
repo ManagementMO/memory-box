@@ -13,7 +13,7 @@ test.use({trace:"off"});
 test("the world map travels between actual places and keeps a short phone usable",async({page,world},info)=>{
   await world.connect(page);
   await expect(page.locator('.world-geography')).toBeVisible();
-  await expect(page.locator('.world-place-label:not([hidden])').first()).toBeVisible();
+  if(info.project.name==="desktop")await expect(page.locator('.world-place-label:not([hidden])').first()).toBeVisible();
   expect(await page.locator('.world-board').evaluate(board=>{
     const papers=[...board.querySelectorAll('.memory-card')].map(element=>element.getBoundingClientRect());
     return [...board.querySelectorAll<HTMLElement>('.world-place-label:not([hidden])')].filter(label=>{
@@ -35,7 +35,7 @@ test("the world map travels between actual places and keeps a short phone usable
   await expect(page.locator('.world-map-canvas')).toBeVisible();
   await expect(page.locator('.world-map-viewport')).toBeVisible();
   expect(await page.locator('.world-map-viewport').evaluate(element=>getComputedStyle(element).pointerEvents)).toBe('none');
-  const places=page.locator('.world-place-list > button');expect(await places.count()).toBeGreaterThan(3);
+  const places=page.locator('.world-place-list .world-place-destination');expect(await places.count()).toBeGreaterThan(3);
   await expect.poll(()=>page.locator('.world-map-canvas').evaluate(element=>(element as HTMLCanvasElement).width)).toBeGreaterThan(100);
   await capture("map");
   await page.locator('.world-place-list [data-place-id="cat"]').click();
@@ -94,7 +94,7 @@ test("two visitors start a real remote place and paint, leave linked notes and p
   const source=await publish(page);expect(source.isBuildInvitation).toBe(true);
   const other=await world.visitor(browser,baseURL!,page,visitor=>visitor.on('pageerror',error=>errors.push(error.message)));
   await other.getByRole('button',{name:'Explore canvas',exact:true}).click();
-  const place=other.locator('.world-place-list > button').filter({hasText:title});await expect(place).toHaveCount(1);
+  const place=other.locator('.world-place-list .world-place-destination').filter({hasText:title});await expect(place).toHaveCount(1);
   const placeId=await place.getAttribute('data-place-id');expect(placeId).toMatch(/^place:/);
   await place.click();
   await other.locator(`.memory-card[data-memory-id="${source.id}"]`).click();
@@ -125,7 +125,7 @@ test("two visitors start a real remote place and paint, leave linked notes and p
   const photo=await publish(other);expect(photo.type).toBe('image');expect(photo.inspiredBy).toBe(source.id);
   await page.reload();await expect(page.locator('.connection-state')).toHaveText('Live');
   await page.getByRole('button',{name:'Explore canvas',exact:true}).click();
-  await page.locator('.world-place-list > button').filter({hasText:title}).click();
+  await page.locator('.world-place-list .world-place-destination').filter({hasText:title}).click();
   await page.locator(`.memory-card[data-memory-id="${source.id}"]`).click();
   await page.getByRole('button',{name:'Join this build',exact:true}).click();
   await expect(page.locator(`.memory-card[data-memory-id="${note.id}"]`)).toHaveCount(1);

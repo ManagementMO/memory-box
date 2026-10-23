@@ -30,6 +30,9 @@ function region(p:Point){
   return nearest?.id??coordinateKey(p);
 }
 
+/** Use the same geographic ownership as stored pixels and originals. */
+export const geographicPlaceId=(point:Point)=>region(point);
+
 /** Places describe geographic occupancy, never an AI-imposed topic or group. */
 export function worldAreas(memories:readonly Memory[],pixels:readonly Pixel[]):WorldArea[]{
   const groups=new Map<string,{memories:Memory[];count:number;left:number;top:number;right:number;bottom:number}>();
