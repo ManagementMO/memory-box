@@ -46,6 +46,9 @@ test("the world map travels between actual places and keeps a short phone usable
   await page.getByRole('button',{name:'Wander into a story',exact:true}).click();
   const originalId=await page.locator('.memory-card.is-selected').getAttribute('data-memory-id');
   await page.getByRole('button',{name:'Close story preview',exact:true}).click();
+  // Closing the preview restores focus on the next animation frame. Finish
+  // that handoff before starting a different keyboard navigation sequence.
+  await expect(page.getByRole('button',{name:'Wander into a story',exact:true})).toBeFocused();
   // Recreate the observed label/card collision without moving stored artwork.
   // An original must retain hit priority even when a map label overlaps it.
   expect(await page.locator(`.memory-card[data-memory-id="${originalId}"]`).evaluate(element=>{
