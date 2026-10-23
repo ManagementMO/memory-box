@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {DatabaseError,databaseDiagnostic} from "./database-error";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public code = "request_failed") {
@@ -65,6 +66,9 @@ export function errorResponse(error: unknown) {
     fields: error.issues.map(issue => issue.path.join("."))
   }, 400);
   const message = error instanceof Error ? error.message : "";
+  if(error instanceof DatabaseError&&(error.code==="PT401"&&message==="AUTH_REQUIRED"||error.code==="23503"&&message.includes('"profiles_id_fkey"'))){
+    return json({error:"Your session expired. Reconnect to the box.",code:"invalid_session"},401);
+  }
   if (message.includes("build_invitation_has_words")) return json({error:"Say what people can help make, or close the invitation before removing its words.",code:"invalid_input"},400);
   if (message === "ACCOUNT_SUSPENDED") return json({error: "This session cannot contribute right now.", code: "session_suspended"}, 403);
   if (/budget|rate.limit|too many|cooldown/i.test(message)) {
@@ -74,8 +78,8 @@ export function errorResponse(error: unknown) {
   }
   if (/source_unavailable|asset_unavailable|not.found|not.available|not.published/i.test(message)) return json({error: "This memory is no longer available.", code: "not_found"}, 404);
   if (/not.owner|forbidden|permission|unauthorized/i.test(message)) return json({error: "Only the author can change this memory.", code: "forbidden"}, 403);
-  if (/version|conflict|changed.since|client_id_reused/i.test(message)) return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
-  console.error("Memory Box request failed", {kind: error instanceof Error ? error.name : "unknown"});
+  if (/^(?:VERSION_CONFLICT|IDEMPOTENCY_CONFLICT|CLIENT_ID_REUSED)$/i.test(message)) return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
+  console.error("Memory Box request failed",error instanceof DatabaseError?databaseDiagnostic(error):{kind:error instanceof Error&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)?error.name:"unknown"});
   return json({error: "The box could not finish that request. Your draft is still here; try again.", code: "service_unavailable"}, 503);
 }
 
