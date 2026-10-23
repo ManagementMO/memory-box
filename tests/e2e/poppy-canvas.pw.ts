@@ -49,7 +49,10 @@ test("three canvas distances preserve the actual place and keep originals usable
     await page.setViewportSize({width:320,height:740});
     await openViewTools(page);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
-    const a=await page.locator('.canvas-levels').boundingBox();expect(a!.x).toBeGreaterThanOrEqual(0);expect(a!.x+a!.width).toBeLessThanOrEqual(320);
+    await expect.poll(async()=>{
+      const bounds=(await page.locator('.canvas-levels').boundingBox())!;
+      return Math.min(bounds.x,320-bounds.x-bounds.width);
+    }).toBeGreaterThanOrEqual(0);
   }
   expect(errors).toEqual([]);
 });
