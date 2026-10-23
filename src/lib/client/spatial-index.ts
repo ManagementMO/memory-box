@@ -18,15 +18,15 @@ export function spatialIndex<T>(items:readonly T[],bounds:(item:T)=>WorldRect,bu
       if(!bucket){bucket={x,y,items:[]};buckets.set(key,bucket);}bucket.items.push(item);
     }
   }
-  return {query(rect:FramePoint):T[]{
+  return {query(rect:FramePoint,limit=Infinity):T[]{
     const r={...rect,width:rect.width??0,height:rect.height??0};
-    if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.width<0||r.height<0)return [];
+    if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.width<0||r.height<0||limit<1||Number.isNaN(limit))return [];
     const e=extent(r),found=new Set<T>();
-    const include=(values:readonly T[])=>{for(const item of values)if(!found.has(item)&&intersects(bounds(item),r))found.add(item);};
+    const include=(values:readonly T[])=>{for(const item of values)if(!found.has(item)&&intersects(bounds(item),r)){found.add(item);if(found.size>=limit)return true;}return false;};
     // A far-out view traverses occupied buckets, never billions of empty cells.
     if((e.right-e.left+1)*(e.bottom-e.top+1)>buckets.size*2){
-      for(const bucket of buckets.values())if(bucket.x>=e.left&&bucket.x<=e.right&&bucket.y>=e.top&&bucket.y<=e.bottom)include(bucket.items);
-    }else for(let y=e.top;y<=e.bottom;y++)for(let x=e.left;x<=e.right;x++)include(buckets.get(`${x},${y}`)?.items??[]);
+      for(const bucket of buckets.values())if(bucket.x>=e.left&&bucket.x<=e.right&&bucket.y>=e.top&&bucket.y<=e.bottom&&include(bucket.items))return [...found];
+    }else for(let y=e.top;y<=e.bottom;y++)for(let x=e.left;x<=e.right;x++)if(include(buckets.get(`${x},${y}`)?.items??[]))return [...found];
     include(large);return [...found];
   }};
 }

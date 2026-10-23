@@ -5,6 +5,18 @@ import type { CameraView } from "./world-canvas";
 import { areaAtPoint, type AreaEmblem, type WorldArea } from "@/lib/client/world-atlas";
 import { screenToWorld } from "@/lib/client/canvas-geometry";
 import { ChevronDown } from "./pixel-icons";
+import {intersects,type WorldRect} from "@/lib/client/spatial-index";
+
+/** A small bounded screen-space search; dense artwork simply wins the space. */
+export function clearLabelBox(preferred:{x:number;y:number},width:number,viewport:{width:number;height:number},occupied:readonly WorldRect[],blocked:(box:WorldRect)=>boolean):WorldRect|null{
+  for(const [dx,dy] of [[0,0],[0,-24],[-48,-24],[48,-24],[0,-48],[-80,0],[80,0],[0,24],[-48,24],[48,24]]){
+    const box={x:preferred.x-width/2+dx,y:preferred.y+dy,width,height:44};
+    if(box.x<8||box.x+width>viewport.width-8||box.y<100||box.y+44>viewport.height-100)continue;
+    if(occupied.some(r=>intersects(box,{x:r.x-12,y:r.y-12,width:r.width+24,height:r.height+24})))continue;
+    if(!blocked({x:box.x-4,y:box.y-4,width:width+8,height:52}))return box;
+  }
+  return null;
+}
 
 /** Small original pixel emblems; these are map furniture, not saved artwork. */
 export function AreaMark({emblem="flag"}:{emblem?:AreaEmblem|"map"}){
@@ -28,8 +40,8 @@ export function areaContour(area:WorldArea,margin=0){
 }
 
 export interface GeographyHandle { update:(view:CameraView)=>void }
-export const WorldGeography=memo(function WorldGeography({areas,quiet,onVisit,onWorldMap,ref}:{
-  areas:readonly WorldArea[];quiet:boolean;onVisit?:(area:WorldArea)=>void;onWorldMap?:()=>void;ref:Ref<GeographyHandle>;
+export const WorldGeography=memo(function WorldGeography({areas,quiet,labelBlocked,onVisit,onWorldMap,ref}:{
+  areas:readonly WorldArea[];quiet:boolean;labelBlocked:(rect:WorldRect)=>boolean;onVisit?:(area:WorldArea)=>void;onWorldMap?:()=>void;ref:Ref<GeographyHandle>;
 }){
   const terrain=useRef<SVGGElement>(null),root=useRef<HTMLDivElement>(null),location=useRef<HTMLButtonElement>(null),locationName=useRef<HTMLSpanElement>(null);
   const buttons=useRef(new Map<string,HTMLButtonElement>()),lastView=useRef<CameraView|null>(null);
@@ -40,17 +52,17 @@ export const WorldGeography=memo(function WorldGeography({areas,quiet,onVisit,on
     if(root.current)root.current.dataset.currentPlace=current?.id??"open-ground";
     if(locationName.current)locationName.current.textContent=current?.title??"Open ground";
     if(location.current){location.current.hidden=quiet||!onWorldMap;location.current.setAttribute("aria-description",current?.title??"Open ground");}
-    const occupied:{x:number;y:number;w:number;h:number}[]=[];
+    const occupied:WorldRect[]=[];
     const candidates=areas.map(area=>({area,x:(area.x+area.width/2)*view.z+view.x,y:area.y*view.z+view.y-40}))
       .sort((a,b)=>(b.area.memoryIds.length*150+b.area.pixelCount)-(a.area.memoryIds.length*150+a.area.pixelCount));
     for(const {area,x,y} of candidates){
       const button=buttons.current.get(area.id);if(!button)continue;
-      const w=Math.min(180,48+area.title.length*7),box={x:x-w/2,y,w,h:44};
-      const hidden=quiet||view.z>.82||box.x<8||box.x+w>view.width-8||y<100||y+44>view.height-100||occupied.some(r=>box.x<r.x+r.w+12&&box.x+w+12>r.x&&y<r.y+r.h+12&&y+56>r.y);
-      button.hidden=hidden;
-      if(!hidden){button.style.width=`${w}px`;button.style.left=`${x}px`;button.style.top=`${y}px`;occupied.push(box);}
+      if(quiet||view.z>.82){button.hidden=true;continue;}
+      const w=Math.min(180,48+area.title.length*7),box=clearLabelBox({x,y},w,view,occupied,r=>labelBlocked({x:(r.x-view.x)/view.z,y:(r.y-view.y)/view.z,width:r.width/view.z,height:r.height/view.z}));
+      button.hidden=!box;
+      if(box){button.style.width=`${w}px`;button.style.left=`${box.x+w/2}px`;button.style.top=`${box.y}px`;occupied.push(box);}
     }
-  },[areas,quiet,onWorldMap]);
+  },[areas,quiet,onWorldMap,labelBlocked]);
   useImperativeHandle(ref,()=>({update}),[update]);
   useLayoutEffect(()=>{if(lastView.current)update(lastView.current);},[update]);
   return <div className="world-geography" ref={root}>

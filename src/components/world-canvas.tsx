@@ -14,7 +14,7 @@ import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 import type { ContributionMark } from "@/lib/client/contribution-feedback";
 import { ContributionMarkView } from "./contribution-mark";
 import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
-import { spatialIndex } from "@/lib/client/spatial-index";
+import { spatialIndex,type WorldRect } from "@/lib/client/spatial-index";
 import { atlasArrivalBounds, worldAreas, type WorldArea } from "@/lib/client/world-atlas";
 import { WorldGeography, type GeographyHandle } from "./world-geography";
 
@@ -45,6 +45,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const derivedAreas=useMemo(()=>areas??worldAreas(world.memories,world.pixels),[areas,world.memories,world.pixels]);
   const floatingState=useRef(floating);floatingState.current=floating;
   const pixelIndex=useMemo(()=>spatialIndex(world.pixels,pixel=>({x:pixel.x*GRID_SIZE,y:pixel.y*GRID_SIZE,width:GRID_SIZE,height:GRID_SIZE})),[world.pixels]);
+  const paperIndex=useMemo(()=>spatialIndex(world.memories,memory=>{const size=memorySize(memory);return {x:memory.x-12,y:memory.y-12,width:size.width+24,height:size.height+24};}),[world.memories]);
+  const labelBlocked=useCallback((rect:WorldRect)=>paperIndex.query(rect,1).length>0||pixelIndex.query(rect,1).length>0,[paperIndex,pixelIndex]);
   const latest = useRef({ world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor });
   latest.current = { world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
@@ -366,7 +368,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       }
       publishPointer(point);
     }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
-    <WorldGeography ref={geography} areas={derivedAreas} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} onVisit={onArea} onWorldMap={onWorldMap}/>
+    <WorldGeography ref={geography} areas={derivedAreas} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />
     <div className="world-transformed" ref={transformed}>
       <svg className="memory-threads" width="1200" height="720" aria-hidden="true">{relationships.map(memory => {

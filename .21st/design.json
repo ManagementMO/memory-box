@@ -114,12 +114,12 @@
       "Open builds show actual current invitations and source-backed contributions; joining does not imply membership, completion or contributor counts",
       "Floating mobile workbench and reply sheets reserve 82px for the dock, scroll within 60dvh/440px and keep actions at least 44px tall",
       "Places derive only from actual stored originals or pixels on the continuous signed sparse plane; pixel-only places survive removal of their last original",
-      "Faint stepped pastel geography and dotted travel trails stay beneath authored art; distance labels declutter and hide while reading, painting, placing or using a panel",
-      "Authored notes/photos take click and drag priority over overlapping geographic labels on desktop/mobile: transformed authored layer z-index 1, place labels 0, World control 15 and pointer-transparent cursors 11",
+      "Faint stepped pastel geography and dotted travel trails stay beneath authored art; labels try at most 10 nearby screen-space positions clear of viewport/control margins, prior labels and projected paper/photo/pixel occupancy, then hide if none is clear; hide while reading, painting, placing or using a panel",
+      "Authored notes/photos retain click and drag priority over geographic wayfinding on desktop/mobile: transformed authored layer z-index 1, place labels 0, World control 15 and pointer-transparent cursors 11; visible label lettering stays clear of authored materials",
       "World map provides actual-content footprints, a current viewport and a keyboard/touch destination list; all three existing zoom levels preserve the current place",
       "Start a place opens an unpublished invitation with explicit placement; substantive or linked drafts and staged paint resume instead, while a pristine empty unlinked draft may be replaced by that explicit action",
       "Mobile World control stays compact and clear of Meet here/presence; the map sheet reserves 82px for the dock, stays within min(68dvh, 490px) and retains visible focus and at least 44px action targets",
-      "Cache miniature artwork by content and size, update its viewport on a separate transparent canvas and query the cached sparse index for visible main-layer pixels",
+      "Cache miniature artwork by content and size, update its viewport on a separate transparent canvas and query the cached sparse index for visible main-layer pixels; label occupancy reuses cached pixel and tilt-padded paper/photo indices with a first-hit limit, preserving complete ordinary query results",
       "Keep real-time, painting, private image upload, build-on and source-backed search behavior",
       "Respect reduced motion; retain keyboard focus and tooltip dismissal"
     ],
@@ -225,6 +225,18 @@
       "source": "src/app/world-atlas.css"
     },
     {
+      "fact": "behavior.boundedLabelSearchMovesOrHidesAroundActualOccupancy",
+      "source": "src/components/world-geography.tsx"
+    },
+    {
+      "fact": "behavior.cachedPixelAndTiltPaddedPaperOccupancyForLabels",
+      "source": "src/components/world-canvas.tsx"
+    },
+    {
+      "fact": "behavior.optionalQueryLimitStopsOccupancyAtFirstHit",
+      "source": "src/lib/client/spatial-index.ts"
+    },
+    {
       "fact": "components.actualContentMapWithCachedArtworkAndSeparateViewportCanvas",
       "source": "src/components/world-map.tsx"
     },
@@ -253,5 +265,5 @@
       "source": "src/lib/world-bounds.ts"
     }
   ],
-  "generatedAt": "2026-10-23T00:02:20Z"
+  "generatedAt": "2026-10-23T00:12:35Z"
 }

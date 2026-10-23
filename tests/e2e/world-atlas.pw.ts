@@ -14,6 +14,12 @@ test("the world map travels between actual places and keeps a short phone usable
   await world.connect(page);
   await expect(page.locator('.world-geography')).toBeVisible();
   await expect(page.locator('.world-place-label:not([hidden])').first()).toBeVisible();
+  expect(await page.locator('.world-board').evaluate(board=>{
+    const papers=[...board.querySelectorAll('.memory-card')].map(element=>element.getBoundingClientRect());
+    return [...board.querySelectorAll<HTMLElement>('.world-place-label:not([hidden])')].filter(label=>{
+      const r=label.getBoundingClientRect();return papers.some(p=>r.left<p.right&&r.right>p.left&&r.top<p.bottom&&r.bottom>p.top);
+    }).map(label=>label.dataset.areaId);
+  })).toEqual([]);
   if(info.project.name==="mobile"){
     const separation=()=>page.getByRole('button',{name:'Open world map',exact:true}).evaluate(element=>element.getBoundingClientRect().right-document.querySelector('.world-social-controls')!.getBoundingClientRect().left);
     await expect.poll(separation).toBeLessThanOrEqual(-4);

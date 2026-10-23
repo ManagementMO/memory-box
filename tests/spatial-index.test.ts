@@ -20,4 +20,10 @@ describe("sparse world queries",()=>{
     const index=spatialIndex([huge],item=>item,64);
     expect(index.query({x:-2,y:-2,width:4,height:4})).toEqual([huge]);
   });
+  it("stops an occupancy query at its first hit without scanning the rest of a dense world",()=>{
+    let reads=0;const items=Array.from({length:10000},(_,i)=>({x:i%100,y:Math.floor(i/100),width:1,height:1}));
+    const index=spatialIndex(items,item=>{reads++;return item;},32);reads=0;
+    expect(index.query({x:0,y:0,width:120000,height:120000},1)).toEqual([items[0]]);expect(reads).toBe(1);
+    expect(index.query({x:0,y:0,width:120000,height:120000},0)).toEqual([]);
+  });
 });
