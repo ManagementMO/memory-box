@@ -173,9 +173,13 @@ test("paint turns survive reload, preserve rejected sketches and leave notes ope
     const persisted = await sameOrigin<Timing>(page, "/api/paint", undefined, "GET");
     expect(persisted.status).toBe(200);
     expect(persisted.body.nextPaintAt).toBe(receipt.nextPaintAt);
-    expect(remaining(persisted.body)).toBeGreaterThan(0);
+    expect(Date.parse(persisted.body.serverTime)).toBeGreaterThanOrEqual(Date.parse(receipt.serverTime));
     await page.getByRole("button", { name: "Paint", exact: true }).click();
-    await expect(page.locator(".paint-turn-status")).toHaveAttribute("data-paint-wait", /^[1-9]\d*$/);
+    // Hosted transport and a reload can outlast the real fifteen-second turn.
+    // Persist the exact deadline, and show ready when it has already elapsed.
+    const status=page.locator(".paint-turn-status");
+    await expect(status.locator("strong")).toHaveText(/^(Next save in [1-9]\d*s|Ready to paint)$/);
+    if(remaining(persisted.body)<=0)await expect(status).toHaveAttribute("data-paint-wait","0");
 
     await page.getByRole("button", { name: "Leave", exact: true }).click();
     const title = "Turn note " + world.runId.slice(0, 8);
@@ -189,7 +193,7 @@ test("paint turns survive reload, preserve rejected sketches and leave notes ope
     const memory = await note.json() as Memory;
     expect(memory.title).toBe(title);
     const afterNote = await sameOrigin<Timing>(page, "/api/paint", undefined, "GET");
-    expect(remaining(afterNote.body)).toBeGreaterThan(0);
+    expect(afterNote.body.nextPaintAt).toBe(receipt.nextPaintAt);
     expect(stalePosts).toBe(1);
 
     // No saved stroke is scheduled automatically. The actual server duration,
