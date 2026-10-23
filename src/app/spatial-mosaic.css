@@ -17,6 +17,14 @@
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card::before { display: block; top: -5px; left: 36%; width: 35px; height: 10px; }
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card::after { display: block; width: 12px; height: 12px; }
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card:not(.is-dimmed) { opacity: 1; }
+.living-mosaic-app .world-transformed[data-level=whole][data-readable-mosaic=true] .memory-compact-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font: 600 clamp(18px, calc(10px / var(--camera-zoom)), 46px)/1.1 var(--font-display);
+  visibility: visible; color: var(--ink); text-wrap: pretty;
+}
+.measurement-settings { margin-block: 18px; }
+.measurement-settings label { display: flex; align-items: center; gap: 9px; min-height: 44px; font: 500 16px var(--font-display); cursor: pointer; }
+.measurement-settings input { appearance: auto; -webkit-appearance: auto; flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: #8b63a8; }
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card.image { height: var(--memory-height) !important; }
 /* At world distance, real paper/photo silhouettes carry the composition.
  * Their full accessible names and original content remain available on open. */

@@ -16,7 +16,8 @@ import { ContributionMarkView } from "./contribution-mark";
 import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
 import { spatialIndex,type WorldRect } from "@/lib/client/spatial-index";
 import { worldAreas, type WorldArea } from "@/lib/client/world-atlas";
-import {CANVAS_VIEW_KEY,decodeCanvasView,encodeCanvasView,initialWorldCamera} from "@/lib/client/canvas-arrival";
+import {CANVAS_VIEW_KEY,decodeCanvasView,encodeCanvasView,initialWorldCamera,arrivalCamera,type ArrivalSource,type ArrivalVariant} from "@/lib/client/canvas-arrival";
+import type {ArrivalSelection} from "@/lib/client/posthog-client";
 import type {PlaceSignal} from "@/lib/client/world-activity";
 import { WorldGeography, type GeographyHandle } from "./world-geography";
 
@@ -26,17 +27,26 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, signals, onArea, onWorldMap, geographyQuiet=false }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, signals, onArea, onWorldMap, geographyQuiet=false, arrivalSelection, onArrival }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
   brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
   floating?: {anchor:FramePoint;mode:"peek"|"compose";content:React.ReactNode};
   areas?:WorldArea[];signals?:readonly PlaceSignal[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
+  arrivalSelection?:ArrivalSelection;onArrival?:(variant:ArrivalVariant|null,source:ArrivalSource)=>void;
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
   const camera = useRef<Camera>({ x: 0, y: 0, z: .8 });
   const viewport = useRef({ width: 0, height: 0 }), initialized = useRef(false);
+  const firstArrival=useRef<{variant:ArrivalVariant|null;source:ArrivalSource;reported:boolean}|null>(null);
+  const arrivalCallback=useRef(onArrival);arrivalCallback.current=onArrival;
+  const arrivalChoice=useRef(arrivalSelection);
+  const reportArrival=useCallback(()=>{
+    const first=firstArrival.current,element=board.current;
+    if(!first||first.reported||!element?.isConnected||!element.clientWidth||document.visibilityState!=="visible")return;
+    first.reported=true;arrivalCallback.current?.(first.variant,first.source);
+  },[]);
   const pointers = useRef(new Map<number, Point>()), gesture = useRef<Gesture | null>(null), stroke = useRef<Pixel[]>([]);
   const suppressCardClickUntil = useRef(0);
   const hadPeerPaint = useRef(false);
@@ -55,6 +65,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
   const [compact,setCompact]=useState(false),[viewOpen,setViewOpen]=useState(false);
   const saveView=useCallback(()=>{
+    if(arrivalChoice.current?.source==="qa")return;
     if(!initialized.current||!viewport.current.width)return;
     const saved=encodeCanvasView(latest.current.world,{...camera.current,...viewport.current});
     if(saved)try{localStorage.setItem(CANVAS_VIEW_KEY,saved);}catch{/* Storage is optional. */}
@@ -164,6 +175,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       transformed.current.dataset.overview = String(z < .5);
       transformed.current.dataset.map = String(z < .15);
       transformed.current.dataset.level = canvasLevel(z);
+      transformed.current.dataset.readableMosaic=String(z>=.16);
     }
     element.dataset.cameraX = String(x); element.dataset.cameraY = String(y); element.dataset.cameraZoom = String(z);
     element.dataset.zoomLevel = canvasLevel(z);setLevel(canvasLevel(z));
@@ -183,6 +195,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     window.addEventListener("pagehide",saveView);document.addEventListener("visibilitychange",hidden);
     return()=>{if(saveTimer.current)clearTimeout(saveTimer.current);saveView();window.removeEventListener("pagehide",saveView);document.removeEventListener("visibilitychange",hidden);};
   },[saveView]);
+  useEffect(()=>{document.addEventListener("visibilitychange",reportArrival);return()=>document.removeEventListener("visibilitychange",reportArrival);},[reportArrival]);
   useEffect(()=>{setViewOpen(false);setPanOpen(false);},[geographyQuiet,!!pending]);
   useEffect(()=>{
     if(!viewOpen)return;
@@ -241,13 +254,20 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       const link=parseSharedPlace(window.location.hash);
       let saved:Camera|null=null;
       try{saved=decodeCanvasView(localStorage.getItem(CANVAS_VIEW_KEY),latest.current.world,size);}catch{/* Storage may be blocked. */}
-      target=link?sharedPlaceCamera(link,size):saved??initialWorldCamera(latest.current.world,latest.current.areas,size);
+      const choice=arrivalChoice.current;
+      const preview=choice?.source==="qa"&&choice.variant;
+      const source:ArrivalSource=link?"shared":preview?"qa":saved?"saved":choice?.variant?choice.source:"default";
+      target=link?sharedPlaceCamera(link,size):preview?arrivalCamera(latest.current.world,latest.current.areas,size,preview):saved??(choice?.variant?arrivalCamera(latest.current.world,latest.current.areas,size,choice.variant):initialWorldCamera(latest.current.world,latest.current.areas,size));
+      if(!firstArrival.current)firstArrival.current={variant:source==="experiment"||source==="qa"?choice?.variant??null:null,source,reported:false};
+      element.dataset.arrival=firstArrival.current.variant??source;
+      element.dataset.arrivalSource=source;
     }else{
       const occupied=occupiedBounds(latest.current.areas,[]);
       target=frameCamera([occupied??{x:0,y:0,width:1200,height:720}],size,{padding:size.width<=700?35:64,maxZoom:.85});
     }
     animateCamera(target, animate);
-  }, [animateCamera]);
+    if(first)requestAnimationFrame(reportArrival);
+  }, [animateCamera,reportArrival]);
 
   useEffect(() => {
     const element = board.current;
@@ -269,6 +289,11 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
 
   useEffect(() => {
     // A link/explicit navigation wins even if the first resize has not arrived.
+    if(command.key>0&&!firstArrival.current&&board.current){
+      const source:ArrivalSource=parseSharedPlace(window.location.hash)?"shared":"default";
+      firstArrival.current={variant:null,source,reported:false};
+      board.current.dataset.arrival=source;board.current.dataset.arrivalSource=source;
+    }
     if (command.key > 0 && !initialized.current && board.current) {
       initialized.current = true;
       viewport.current = { width: board.current.clientWidth, height: board.current.clientHeight };
@@ -280,7 +305,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       animateCamera({ ...command.camera, x: command.camera.x + (board.current.clientWidth - command.camera.width) / 2, y: command.camera.y + (board.current.clientHeight - command.camera.height) / 2 });
     } else if (command.type === "fit" || command.key === 0) entryView(command.key !== 0, command.key === 0);
     else if (command.points?.length) framePoints(command.points, command.type === "focus");
-  }, [command, entryView, framePoints, animateCamera]);
+    requestAnimationFrame(reportArrival);
+  }, [command, entryView, framePoints, animateCamera,reportArrival]);
 
   useEffect(() => { draw(); }, [world.pixels, pending, brush?.cells, brush?.enabled, draw]);
   useEffect(() => { drawPeers(); }, [peers, drawPeers]);
