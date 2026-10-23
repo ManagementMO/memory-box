@@ -37,6 +37,9 @@ import { openBuildInvitations } from "@/lib/client/build-invitations";
 import { originalLabel } from "@/lib/client/memory-presentation";
 import { neighborhoodCamera } from "@/lib/client/story-neighborhood";
 import { memoryContributionMark, paintContributionMark, type ContributionMark } from "@/lib/client/contribution-feedback";
+import {useArrivalExperiment} from "@/lib/client/use-arrival-experiment";
+import {measurement} from "@/lib/client/posthog-client";
+import {MeasurementSettings} from "./measurement-settings";
 
 type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | "world" | null;
 type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
@@ -48,6 +51,7 @@ function revealMobilePanel() {
 }
 
 export function MemoryBoxApp() {
+  const arrivalSelection=useArrivalExperiment();
   const { world, identity, setIdentity, connection, error: worldError, refresh, retry } = useWorld();
   const presence = usePresence(identity, connection);
   const [activeScene, setActiveScene] = useState<SceneId>("mixtape");
@@ -76,6 +80,8 @@ export function MemoryBoxApp() {
   const [arrival, setArrival] = useState<SharedPlace | null>(null);
   const [mapCamera,setMapCamera]=useState<CameraView|null>(null);
   const mapCameraTick=useRef(0),currentAreaId=useRef<string|null>(null);
+  const discoveryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>()=>{if(discoveryTimer.current)clearTimeout(discoveryTimer.current);},[]);
   const {seconds:paintWait,known:paintTurnKnown,accept:acceptPaintTurn,rejected:handlePaintRejection}=usePaintTurn(identity?.id,connection==="live",panel==="paint"||pending?.kind==="paint");
   const panelHeading = useRef<HTMLHeadingElement>(null), searchInput = useRef<HTMLTextAreaElement>(null), searchSequence = useRef(0);
   const previewInvoker = useRef<HTMLElement | null>(null);
@@ -162,7 +168,12 @@ export function MemoryBoxApp() {
   const cameraTo = useCallback((points: CameraCommand["points"], type: "focus" | "frame" = "focus") => setCommand((old) => ({ key: old.key + 1, type, points })), []);
   const rememberCamera = useCallback((view: CameraView) => {
     cameraView.current = view;
-    currentAreaId.current=areaAtPoint(areasRef.current,screenToWorld(view,{x:view.width/2,y:view.height/2}))?.id??null;
+    const area=areaAtPoint(areasRef.current,screenToWorld(view,{x:view.width/2,y:view.height/2}))?.id??null;
+    if(area!==currentAreaId.current){
+      currentAreaId.current=area;
+      if(discoveryTimer.current)clearTimeout(discoveryTimer.current);
+      if(area)discoveryTimer.current=setTimeout(()=>{if(document.visibilityState==="visible"&&currentAreaId.current===area)measurement.explored(area);},700);
+    }
     if(panelRef.current==="world"&&performance.now()-mapCameraTick.current>100){mapCameraTick.current=performance.now();setMapCamera(view);}
     const element=invitationElement.current;if(!element)return;
     const place=invitationLandmark.current,painter=livePainter.current;
@@ -195,6 +206,7 @@ export function MemoryBoxApp() {
     setAnnouncement("");
     setBackToDraft(fromDraft && !!draft);
     const memory = world?.memories.find((item) => item.id === id);
+    if(memory)measurement.opened(memory.id,memory.type,!!memory.isSeed);
     if (fromSearch && !backToSearch) { searchCamera.current = cameraView.current ? { ...cameraView.current } : null; searchOrigin.current = { id, scroll: panelScroller.current?.scrollTop ?? 0, pageScroll: window.scrollY, citation: !!document.activeElement?.classList.contains("citation") }; }
     setSelectedId(id); setPanel("inspect"); setPanelExpanded(false); setPending(null); setBackToSearch(fromSearch); setDeleteConfirm(false); setFormError(""); setJustPublished(null);
     if (memory) { setActiveScene(memory.sceneId); cameraTo([{ ...memory, ...memorySize(memory) }]); }
@@ -206,6 +218,7 @@ export function MemoryBoxApp() {
   };
   const peekMemory=(id:string,navigate=false)=>{
     const memory=world?.memories.find(m=>m.id===id);if(!memory)return;
+    measurement.opened(memory.id,memory.type,!!memory.isSeed);
     if(!document.activeElement?.closest(".story-peek"))previewInvoker.current=document.querySelector<HTMLElement>(navigate?".wander-button":`.memory-card[data-memory-id="${CSS.escape(id)}"]`);
     visited.current=[...visited.current.filter(item=>item!==id).slice(-39),id];
     setArrival(null);setPanel(null);setPending(null);setSelectedId(id);setBackToSearch(false);setBackToDraft(false);setAnnouncement("");setFormError("");
@@ -250,6 +263,7 @@ export function MemoryBoxApp() {
   const visitArea = (area:WorldArea) => {
     if(busy)return;
     if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
+    measurement.explored(area.id);
     closePanel();setPending(null);setActiveScene(sceneForPoint(area.x+area.width/2,area.y+area.height/2));cameraTo([area],"frame");
     setAnnouncement("");requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
   };
@@ -391,6 +405,7 @@ export function MemoryBoxApp() {
         const cells = shapePixels(pending.shape, pending.color, pending.x, pending.y);
         const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId: pending.opId, sceneId: sceneForPoint(pending.x + 36, pending.y + 36), cells }) });
         acceptPaintTurn(result);
+        measurement.contribution(result.operationId,"paint",!!joinedBuildId,cells.length);
         setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); await refresh(); setPending(null); setPanel("paint"); setActiveScene(sceneForPoint(pending.x + 36, pending.y + 36));
         setContribution(paintContributionMark(result.operationId, cells));
         setAnnouncement(`${cells.length} ${cells.length === 1 ? "pixel" : "pixels"} added to the canvas.`);
@@ -401,6 +416,7 @@ export function MemoryBoxApp() {
         const body: NewMemory = { clientId: draft.clientId, type: draft.type, title: draft.title.trim(), body: draft.body.trim(), color: draft.color, x: pending.x, y: pending.y, sceneId: pending.sceneId, ...(draft.isBuildInvitation?{isBuildInvitation:true}:{}), ...(draft.type === "link" ? { url: draft.url.trim() } : {}), ...(draft.type === "image" && assetId ? { assetId } : {}), ...(draft.inspiredBy ? { inspiredBy: draft.inspiredBy } : {}), ...(draft.paintOperationId ? { paintOperationId: draft.paintOperationId } : {}) };
         const result = await api<Memory | { memory: Memory }>("/api/memories", { method: "POST", body: JSON.stringify(body) });
         const saved = "memory" in result ? result.memory : result;
+        measurement.contribution(saved.id,saved.type,!!saved.inspiredBy);
         const current = await refresh();
         const visible = current?.memories.some(memory => memory.id === saved.id);
         setPending(null); setPanel(visible && !saved.inspiredBy ? "inspect" : null); setSelectedId(visible ? saved.id : null); setActiveScene(saved.sceneId); setJustPublished(saved.id); setDraft(null); setBackToSearch(false); setBackToDraft(false);
@@ -449,6 +465,7 @@ export function MemoryBoxApp() {
       const middle = brushPixels[Math.floor(brushPixels.length / 2)];
       const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId, sceneId: sceneForPoint(middle.x * GRID_SIZE, middle.y * GRID_SIZE), cells: brushPixels.map(({ x, y, color }) => ({ x, y, color })) }) });
       acceptPaintTurn(result);
+      measurement.contribution(result.operationId,"paint",!!joinedBuildId,brushPixels.length);
       setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); setBrushPixels([]); brushOperation.current = null; await refresh();
       setContribution(paintContributionMark(result.operationId, brushPixels));
       setAnnouncement(`${brushPixels.length} ${brushPixels.length === 1 ? "pixel" : "pixels"} added to the canvas.`);
@@ -621,7 +638,7 @@ export function MemoryBoxApp() {
     if (panel === "scene") { const memories = world.memories.filter((memory) => memory.sceneId === activeScene); return <div><h3 className="panel-lead">{active.title}</h3><div className="panel-actions"><button type="button" className="button button-primary" onClick={showPaint}><Paintbrush size={16} />Paint here</button><button type="button" className="button button-secondary" onClick={() => startMemory(lastPaintSource, lastPaint?.operationId)}><Plus size={16} />Leave a memory</button></div>{lastPaint ? <div className="saved-paint"><CheckCheck size={16} /><div><strong>Pixels saved</strong><button type="button" className="text-button" onClick={() => startMemory(lastPaintSource, lastPaint.operationId)}>Attach a memory<ArrowRight size={16} /></button></div></div> : null}<button type="button" className="text-button scene-ask" onClick={() => void runSearch("ask", `What connects the memories in ${active.title}?`, "scene")}><MessageCircle size={16} />Ask about this scene<ArrowUpRight size={16} /></button><div className="section-label">{memories.length} memories</div>{memories.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</div>; }
     if (panel === "browse") return <div><label className="field field-inline">Show<select value={scope} onChange={(event) => setScope(event.target.value as "all" | "scene")}><option value="all">Whole box</option><option value="scene">{active.title}</option></select></label>{world.memories.filter((memory) => scope === "all" || memory.sceneId === activeScene).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}{!world.memories.length ? <div className="empty-state"><StickyNote size={24} /><h3>No contributions yet</h3><button type="button" className="button button-primary" onClick={() => startMemory()}>Leave something<Plus size={16} /></button></div> : null}</div>;
     if (panel === "activity") return <div><div className="activity-list">{world.events.map((event) => <div className="activity-event" key={event.id}><span className="activity-dot" /><div><strong>@{event.authorName}</strong><p>{event.description}</p><span>{relativeDate(event.createdAt)}{event.isSeed ? " · starter history" : ""}</span>{event.memoryId ? <button type="button" className="text-button" onClick={() => openMemory(event.memoryId!)}>View original<ArrowUpRight size={16} /></button> : null}</div></div>)}</div>{!world.events.length ? <p className="panel-copy">No recent changes.</p> : null}</div>;
-    if (panel === "profile") return <form className="profile-form" onSubmit={saveProfile}><div className="profile-avatar"><UserRound size={32} /></div><label className="field">Your name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} minLength={2} maxLength={24} required autoComplete="nickname" placeholder="Display name" /></label><p className="fine-print">Shown beside your contributions.</p><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Save my name"}<ArrowRight size={16} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}<p className="fine-print">Guest access is saved in this browser. Clearing browser data removes access to edit your contributions.</p><div className="section-label">Your contributions</div>{world.memories.filter((memory) => memory.authorId === identity?.id).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</form>;
+    if (panel === "profile") return <form className="profile-form" onSubmit={saveProfile}><div className="profile-avatar"><UserRound size={32} /></div><label className="field">Your name<input value={profileName} onChange={(event) => setProfileName(event.target.value)} minLength={2} maxLength={24} required autoComplete="nickname" placeholder="Display name" /></label><p className="fine-print">Shown beside your contributions.</p><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Save my name"}<ArrowRight size={16} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}<p className="fine-print">Guest access is saved in this browser. Clearing browser data removes access to edit your contributions.</p><MeasurementSettings/><div className="section-label">Your contributions</div>{world.memories.filter((memory) => memory.authorId === identity?.id).map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id)} />)}</form>;
     if (panel === "report") return <form onSubmit={report}><Flag size={24} className="report-icon" /><h3 className="panel-lead">Help look after this place.</h3><p className="panel-copy">Tell us what needs attention. The contribution will stay in place until it’s reviewed.</p><label className="field">What should we know?<textarea rows={5} value={reportReason} onChange={(event) => setReportReason(event.target.value)} minLength={5} maxLength={500} required placeholder="A short explanation…" /></label><button type="submit" className="button button-primary button-full" disabled={!!busy || !canWrite}>{busy || "Send report"}<Send size={15} /></button>{formError ? <p className="form-error" role="alert">{formError}</p> : null}</form>;
     return null;
   }
@@ -658,7 +675,7 @@ export function MemoryBoxApp() {
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
-      {world ? <div className="world-column"><WorldCanvas world={world} areas={areas} signals={placeSignals} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
+      {world && arrivalSelection ? <div className="world-column"><WorldCanvas world={world} arrivalSelection={arrivalSelection} onArrival={measurement.arrived} areas={areas} signals={placeSignals} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
         <div className="world-social-controls canvas-overlay" role="group" aria-label="People and sharing">
           {!panel && !pending ? <button type="button" className="meet-here-button" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
           <button type="button" className="world-presence" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>

@@ -8,7 +8,7 @@ A world of little lives. Get lost in a sprawling mosaic, paint something ridicul
 
 **[Open the live commons](https://memory-box-commons.vercel.app)**
 
-The canvas now has three distances: **Whole patch**, **Wander**, and **Up close**. These keep the same world center while changing scale; free pan, pinch and World remain available. Campus arrival starts beside the goose at a readable distance on phones. Overview shows titles and photo miniatures, closer views reveal authored excerpts, and the reader keeps the full original and its build-on action. Notes have stable scrap/caption/ticket materials; photos stay framed snapshots. All pixel colors and original positions remain authoritative.
+The canvas has three distances: **World**, **Nearby**, and **Close-up**. These keep the same world center while changing scale; free pan and pinch remain available. Overview shows titles and photo miniatures, closer views reveal authored excerpts, and the reader keeps the full original and its build-on action. Notes have stable scrap/caption/ticket materials; photos stay framed snapshots. All pixel colors and original positions remain authoritative.
 
 Memory Box combines a large sparse collaborative pixel world with an attributed collection of text, images, and links. The canvas is shared; each memory remains its author's original. A response creates a separate memory connected by an explicit “built on” thread.
 
@@ -90,6 +90,10 @@ The approved poppy-canvas addition uses `scripts/seed-poppy-world.ts` with the s
 
 ## Validate
 
+The arrival experiment compares **world-first** (a broad occupied mosaic) with **inside-world** (a readable original beside neighboring work). Review either without enrollment using `?arrival=world-first` or `?arrival=inside-world`. Shared places take priority; regular returning visits restore their saved view. The preview never changes that saved view.
+
+PostHog is optional and runs only on `NEXT_PUBLIC_ANALYTICS_HOST` when its public project token is configured. Assignment uses a separate anonymous browser ID, never the Supabase identity. We capture explicit visit, visible exposure, discovery, accepted contribution and share events. No story text, photos, names, queries or canvas coordinates are sent. Automatic SDK events, replay, pageviews and person profiles are disabled. The profile panel offers an opt-out and DNT/GPC are respected. See the [experiment contract](docs/superpowers/specs/2026-10-23-arrival-experiment-design.md) and [operating notes](docs/arrival-experiment.md) for metrics, eligibility, configuration and evidence limits.
+
 ```sh
 npm test
 npm run typecheck
@@ -104,6 +108,8 @@ npm run test:live
 # Test the deployed server against the same configured project:
 TEST_BASE_URL=https://YOUR_DEPLOYMENT npm run test:live
 ```
+
+The analytics browser suite requires an isolated dev server compiled with `NEXT_PUBLIC_ANALYTICS_HOST=localhost`, `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=phc_test_arrival`, and `NEXT_PUBLIC_POSTHOG_HOST=https://posthog-test.invalid`. Playwright intercepts that fake host; it never sends test event traffic to the live project. Run `MB_E2E_OPEN_WORLD=1 MB_E2E_PROVISIONED=1 MB_E2E_ANALYTICS=1 MB_E2E_WRITE=1 npx playwright test tests/e2e/arrival-experiment.pw.ts --workers=1` against it. Provisioned sessions test integration without spending the public anonymous-IP admission bucket; fixture teardown removes their exact records and restores only their own paint revisions.
 
 Unit tests cover validation, image processing, model boundaries, citation schemas, retrieval fallback, source-version changes, and request origins. Hosted tests exercise real RLS, ordering, idempotency, partial undo, asset eligibility, indexing, ownership, deletion, Realtime, and actual provider calls. Live scripts create disposable fixtures and clean their exact records; run them against a dedicated project or the authorized pilot, never an unrelated database.
 

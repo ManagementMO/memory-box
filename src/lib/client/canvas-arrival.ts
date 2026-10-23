@@ -8,6 +8,24 @@ type Viewport={width:number;height:number};
 type Scope=Pick<WorldSnapshot,"worldId"|"epoch">;
 export const CANVAS_VIEW_KEY="memory-box:canvas-view:v1";
 
+export type ArrivalVariant="world-first"|"inside-world";
+export type ArrivalSource="experiment"|"qa"|"shared"|"saved"|"default";
+
+/** The experiment changes the entrance, never the shared geography. */
+export function arrivalCamera(world:WorldSnapshot,areas:readonly WorldArea[],viewport:Viewport,variant:ArrivalVariant):Camera{
+  if(variant==="world-first")return frameCamera([atlasArrivalBounds(areas)??{x:0,y:0,width:1200,height:720}],viewport,{padding:viewport.width<=700?28:64,maxZoom:.44});
+  const contextual=world.memories.filter(memory=>!!(memory.title.trim()||memory.body.trim()));
+  if(!contextual.length){const width=Math.min(viewport.width,700);const nearby=initialWorldCamera(world,areas,{...viewport,width});return {...nearby,x:nearby.x+(viewport.width-width)/2};}
+  const byId=new Map(contextual.map(memory=>[memory.id,memory]));
+  const ranked=areas.map(area=>({area,members:area.memoryIds.flatMap(id=>byId.has(id)?[byId.get(id)!]:[])})).filter(place=>place.members.length)
+    .sort((a,b)=>(b.members.length+2*Math.min(8,b.members.filter(m=>!m.isSeed).length)+Math.log1p(b.area.pixelCount))-(a.members.length+2*Math.min(8,a.members.filter(m=>!m.isSeed).length)+Math.log1p(a.area.pixelCount))||a.area.id.localeCompare(b.area.id));
+  const place=ranked[0];
+  const neighbors=(m:Memory)=>contextual.filter(other=>Math.hypot(other.x-m.x,other.y-m.y)<460).length+(!m.isSeed?4:0)+(m.isBuildInvitation?2:0);
+  const anchor=[...(place?.members??contextual)].sort((a,b)=>neighbors(b)-neighbors(a)||a.id.localeCompare(b.id))[0];
+  const size=memorySize(anchor),z=viewport.width<=700?.74:.86;
+  return {x:viewport.width/2-(anchor.x+size.width/2)*z,y:viewport.height*.46-(anchor.y+size.height/2)*z,z};
+}
+
 /** Arrival is a view of stored work; neither geography nor originals move. */
 export function initialWorldCamera(world:WorldSnapshot,areas:readonly WorldArea[],viewport:Viewport):Camera{
   if(viewport.width>700)return frameCamera([atlasArrivalBounds(areas)??{x:0,y:0,width:1200,height:720}],viewport,{padding:64,maxZoom:.4});

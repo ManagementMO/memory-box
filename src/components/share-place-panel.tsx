@@ -6,6 +6,7 @@ import type { SharedPlace } from "@/lib/client/shared-place";
 import { sharedPlaceUrl } from "@/lib/client/shared-place";
 import { ArrowLeft, Check, Copy, MapPin, Send } from "./pixel-icons";
 import { PlacePreview } from "./place-preview";
+import {measurement} from "@/lib/client/posthog-client";
 
 export function SharePlacePanel({ world, place, onBack }: {
   world: WorldSnapshot; place: SharedPlace; onBack?: () => void;
@@ -30,12 +31,14 @@ export function SharePlacePanel({ world, place, onBack }: {
     try {
       if (!navigator.clipboard?.writeText) { manualCopy(); return; }
       await navigator.clipboard.writeText(url);
+      measurement.shared("copy");
       setCopied(true); setMessage("Link copied. Anyone with it can visit this spot.");
     } catch { manualCopy(); }
   };
   const share = async () => {
     try {
       await navigator.share({ title: "Meet me in Memory Box", url });
+      measurement.shared("native");
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === "AbortError")) manualCopy();
     }

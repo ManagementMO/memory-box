@@ -83,7 +83,7 @@ export class WorldFixture {
     expect(id).toBe(created.data.user.id);
   }
 
-  async connect(page: Page) {
+  async connect(page: Page,path="/") {
     if(!this.contexts.includes(page.context()))this.contexts.push(page.context());
     if (process.env.MB_E2E_PROVISIONED === "1") await this.provision(page);
     page.on("response", response => {
@@ -104,7 +104,7 @@ export class WorldFixture {
       void operation.catch(() => {}); // allSettled below reports it after safe cleanup.
       this.pending.push(operation);
     });
-    await page.goto("/");
+    await page.goto(path);
     try {
       await expect(page.getByRole("region", { name: "The shared Memory Box world" })).toBeVisible();
       await expect(page.locator(".connection-state")).toHaveText("Live", { timeout: 30_000 });
