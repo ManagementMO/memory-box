@@ -115,6 +115,7 @@
       "Floating mobile workbench and reply sheets reserve 82px for the dock, scroll within 60dvh/440px and keep actions at least 44px tall",
       "Places derive only from actual stored originals or pixels on the continuous signed sparse plane; pixel-only places survive removal of their last original",
       "Faint stepped pastel geography and dotted travel trails stay beneath authored art; distance labels declutter and hide while reading, painting, placing or using a panel",
+      "Authored notes/photos take click and drag priority over overlapping geographic labels on desktop/mobile: transformed authored layer z-index 1, place labels 0, World control 15 and pointer-transparent cursors 11",
       "World map provides actual-content footprints, a current viewport and a keyboard/touch destination list; all three existing zoom levels preserve the current place",
       "Start a place opens an unpublished invitation with explicit placement; substantive or linked drafts and staged paint resume instead, while a pristine empty unlinked draft may be replaced by that explicit action",
       "Mobile World control stays compact and clear of Meet here/presence; the map sheet reserves 82px for the dock, stays within min(68dvh, 490px) and retains visible focus and at least 44px action targets",
@@ -220,6 +221,10 @@
       "source": "src/app/world-atlas.css"
     },
     {
+      "fact": "design.authoredContentAboveGeographicLabelsForClickAndDragPriority",
+      "source": "src/app/world-atlas.css"
+    },
+    {
       "fact": "components.actualContentMapWithCachedArtworkAndSeparateViewportCanvas",
       "source": "src/components/world-map.tsx"
     },
@@ -248,5 +253,5 @@
       "source": "src/lib/world-bounds.ts"
     }
   ],
-  "generatedAt": "2026-10-22T23:46:00Z"
+  "generatedAt": "2026-10-23T00:02:20Z"
 }

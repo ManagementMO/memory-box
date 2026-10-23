@@ -37,6 +37,19 @@ test("the world map travels between actual places and keeps a short phone usable
   await expect(page.getByRole('button',{name:'Open world map',exact:true})).toContainText('Cat country');
   const cat=await cameraState(page);expect(cat.zoom).toBeGreaterThan(.15);
   await capture("neighborhood");
+  await page.getByRole('button',{name:'Wander into a story',exact:true}).click();
+  const originalId=await page.locator('.memory-card.is-selected').getAttribute('data-memory-id');
+  await page.getByRole('button',{name:'Close story preview',exact:true}).click();
+  // Recreate the observed label/card collision without moving stored artwork.
+  // An original must retain hit priority even when a map label overlaps it.
+  expect(await page.locator(`.memory-card[data-memory-id="${originalId}"]`).evaluate(element=>{
+    const board=element.closest('.world-board')!,label=board.querySelector<HTMLElement>('.world-place-label')!;
+    const r=element.getBoundingClientRect(),b=board.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
+    const previous={style:label.style.cssText,hidden:label.hidden};
+    label.hidden=false;label.style.left=`${x-b.x}px`;label.style.top=`${y-b.y-22}px`;label.style.width='180px';
+    try{return !!document.elementFromPoint(x,y)?.closest('.memory-card');}
+    finally{label.style.cssText=previous.style;label.hidden=previous.hidden;}
+  })).toBe(true);
   await page.getByRole('button',{name:'Open world map',exact:true}).focus();await page.keyboard.press('Enter');
   await page.locator('.world-place-list [data-place-id="waterloo"]').focus();await page.keyboard.press('Enter');
   await expect(page.getByRole('button',{name:'Open world map',exact:true})).toContainText('Waterloo');
