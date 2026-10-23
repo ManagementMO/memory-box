@@ -78,6 +78,18 @@ describe("expected authorization failures",()=>{
 });
 
 describe("safe database diagnostics",()=>{
+  it("keeps snapshot consistency failures as server errors when their message mentions a version",async()=>{
+    const log=vi.spyOn(console,"error").mockImplementation(()=>{});
+    try{
+      const response=errorResponse(new Error("The snapshot did not reach its observed database version."));
+      expect(response.status).toBe(503);expect((await response.json()).code).toBe("service_unavailable");
+      expect(log).toHaveBeenCalledWith("Memory Box request failed",{kind:"Error"});
+    }finally{log.mockRestore();}
+  });
+  it.each(["VERSION_CONFLICT","IDEMPOTENCY_CONFLICT","CLIENT_ID_REUSED"])("preserves the explicit %s save conflict",async message=>{
+    const response=errorResponse(new DatabaseError(message,"PT409","mb_update_memory"));
+    expect(response.status).toBe(409);expect((await response.json()).code).toBe("conflict");
+  });
   it("keeps operation and SQLSTATE without copying messages, request arguments or credentials",async()=>{
     const log=vi.spyOn(console,"error").mockImplementation(()=>{});
     try{

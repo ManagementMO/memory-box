@@ -65,7 +65,12 @@ test("two builders keep their source visible and find actual painting and saved 
   const publish=async(visitor:Page)=>{
     await visitor.getByRole("button",{name:"Choose its place",exact:true}).click();
     const accepted=visitor.waitForResponse(r=>new URL(r.url()).pathname==="/api/memories"&&r.request().method()==="POST");
-    await visitor.getByRole("button",{name:"Leave it here",exact:true}).click();const response=await accepted;expect(response.status()).toBe(201);return await response.json() as Memory;
+    await visitor.getByRole("button",{name:"Leave it here",exact:true}).click();const response=await accepted;
+    const text=await response.text();
+    // Preserve framework/proxy responses too. Only this owned fixture's input
+    // and bounded response body enter failure diagnostics, never auth headers.
+    expect(response.status(),JSON.stringify({url:response.url(),contentType:response.headers()["content-type"],response:text.slice(0,2000),input:response.request().postDataJSON()})).toBe(201);
+    return JSON.parse(text) as Memory;
   };
   const source=await publish(page);
   const other=await world.visitor(browser,baseURL!,page,visitor=>visitor.on("pageerror",error=>errors.push(error.message)));

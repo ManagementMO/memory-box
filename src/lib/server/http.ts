@@ -78,7 +78,7 @@ export function errorResponse(error: unknown) {
   }
   if (/source_unavailable|asset_unavailable|not.found|not.available|not.published/i.test(message)) return json({error: "This memory is no longer available.", code: "not_found"}, 404);
   if (/not.owner|forbidden|permission|unauthorized/i.test(message)) return json({error: "Only the author can change this memory.", code: "forbidden"}, 403);
-  if (/version|conflict|changed.since|client_id_reused/i.test(message)) return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
+  if (/^(?:VERSION_CONFLICT|IDEMPOTENCY_CONFLICT|CLIENT_ID_REUSED)$/i.test(message)) return json({error: "This memory changed. Open it again before saving.", code: "conflict"}, 409);
   console.error("Memory Box request failed",error instanceof DatabaseError?databaseDiagnostic(error):{kind:error instanceof Error&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)?error.name:"unknown"});
   return json({error: "The box could not finish that request. Your draft is still here; try again.", code: "service_unavailable"}, 503);
 }
