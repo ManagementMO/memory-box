@@ -19,8 +19,8 @@ export function adminClient(): SupabaseClient {
 }
 
 async function rpc<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await adminClient().rpc(name, args);
-  if (error) throw new DatabaseError(error.message, error.code || "database_error",name);
+  const { data, error, status } = await adminClient().rpc(name, args);
+  if (error) throw new DatabaseError(error.message, error.code || "database_error",name,status);
   return data as T;
 }
 

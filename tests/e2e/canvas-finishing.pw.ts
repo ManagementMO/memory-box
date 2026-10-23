@@ -69,7 +69,7 @@ test("two builders keep their source visible and find actual painting and saved 
     const text=await response.text();
     // Preserve framework/proxy responses too. Only this owned fixture's input
     // and bounded response body enter failure diagnostics, never auth headers.
-    expect(response.status(),JSON.stringify({url:response.url(),contentType:response.headers()["content-type"],response:text.slice(0,2000),input:response.request().postDataJSON()})).toBe(201);
+    expect(response.status(),JSON.stringify({url:response.url(),requestId:response.headers()["x-memory-box-request-id"],contentType:response.headers()["content-type"],response:text.slice(0,2000),input:response.request().postDataJSON()})).toBe(201);
     return JSON.parse(text) as Memory;
   };
   const source=await publish(page);
