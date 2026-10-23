@@ -126,6 +126,8 @@ async function publishDraft(page: Page): Promise<Memory> {
 }
 
 async function expectRenderedPixel(page: Page, cell: { x: number; y: number; color: string }, gridSize: number) {
+  const toggle=page.getByRole("button",{name:"View controls",exact:true});
+  if(await toggle.isVisible()&&await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
   // Entry now fits actual occupied originals, including another parallel
   // fixture's distant place. An individual 6px cell is intentionally subpixel
   // at that scale; use the real zoom controls before judging its raster color.

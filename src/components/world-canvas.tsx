@@ -1,21 +1,23 @@
 "use client";
 
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Compass, Maximize2, Minus, Plus } from "./pixel-icons";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Compass, Maximize2, Minus, Plus } from "./pixel-icons";
 import { ToolButton } from "./tool-button";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Memory, Pixel, SceneId, WorldSnapshot } from "@/lib/types";
 import { memorySize } from "@/lib/scenes";
 import { CELL_MIN, CELL_MAX, GRID_SIZE } from "@/lib/world-bounds";
-import { arrivalBounds, frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
+import { frameCamera, mergePaintCells, occupiedBounds, rasterLine, screenToWorld, storyCamera, zoomCameraAt, type Camera, type FramePoint, type Point } from "@/lib/client/canvas-geometry";
 import type { CursorUpdate, LivePeer } from "@/lib/client/presence-state";
 import { CANVAS_LEVELS, canvasLevel, presetCamera, type CanvasLevel } from "@/lib/client/canvas-levels";
 import { MemoryCard } from "./memory-card";
-import { sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
+import { parseSharedPlace,sharedPlaceCamera, type SharedPlace } from "@/lib/client/shared-place";
 import type { ContributionMark } from "@/lib/client/contribution-feedback";
 import { ContributionMarkView } from "./contribution-mark";
 import { floatingStoryPosition } from "@/lib/client/story-neighborhood";
 import { spatialIndex,type WorldRect } from "@/lib/client/spatial-index";
-import { atlasArrivalBounds, worldAreas, type WorldArea } from "@/lib/client/world-atlas";
+import { worldAreas, type WorldArea } from "@/lib/client/world-atlas";
+import {CANVAS_VIEW_KEY,decodeCanvasView,encodeCanvasView,initialWorldCamera} from "@/lib/client/canvas-arrival";
+import type {PlaceSignal} from "@/lib/client/world-activity";
 import { WorldGeography, type GeographyHandle } from "./world-geography";
 
 export interface CameraView extends Camera { width: number; height: number }
@@ -24,12 +26,12 @@ export interface PendingPlacement { kind: "paint" | "memory"; x: number; y: numb
 export interface BrushState { enabled: boolean; color: string; cells: Pixel[]; disabled: boolean; onChange: (cells: Pixel[]) => void }
 interface Gesture { kind: "pan" | "paint" | "pinch"; start: Point; camera: Camera; moved: boolean; memoryId?: string; previousCell?: Point; distance?: number; anchor?: Point }
 
-export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, onArea, onWorldMap, geographyQuiet=false }: {
+export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPosition, command, brush, onCameraChange, peers = [], onCursor, contribution, floating, children, areas, signals, onArea, onWorldMap, geographyQuiet=false }: {
   world: WorldSnapshot; selectedId: string | null; foundIds: string[]; activeScene: SceneId; onScene: (id: SceneId) => void;
   onOpen: (id: string) => void; pending: PendingPlacement | null; onPosition: (x: number, y: number) => void; command: CameraCommand;
   brush?: BrushState; onCameraChange?: (camera: CameraView) => void; peers?: LivePeer[]; onCursor?: (update: CursorUpdate) => void; contribution?: ContributionMark | null; children?: React.ReactNode;
   floating?: {anchor:FramePoint;mode:"peek"|"compose";content:React.ReactNode};
-  areas?:WorldArea[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
+  areas?:WorldArea[];signals?:readonly PlaceSignal[];onArea?:(area:WorldArea)=>void;onWorldMap?:()=>void;geographyQuiet?:boolean;
 }) {
   const board = useRef<HTMLDivElement>(null), transformed = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), cursorCanvas = useRef<HTMLCanvasElement>(null);
   const coordinate = useRef<HTMLSpanElement>(null), cameraAnimation = useRef<number | null>(null), lastPointer = useRef<Point | null>(null);
@@ -38,6 +40,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const pointers = useRef(new Map<number, Point>()), gesture = useRef<Gesture | null>(null), stroke = useRef<Pixel[]>([]);
   const suppressCardClickUntil = useRef(0);
   const hadPeerPaint = useRef(false);
+  const saveTimer=useRef<ReturnType<typeof setTimeout>|null>(null),viewToggle=useRef<HTMLButtonElement>(null);
   const floatingElement=useRef<HTMLDivElement>(null);
   const knownMemories=useRef<Map<string,number>|null>(null),arrivalTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [arrived,setArrived]=useState<Set<string>>(()=>new Set());
@@ -50,6 +53,13 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
   const latest = useRef({ world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor });
   latest.current = { world, areas:derivedAreas, pixelIndex, pending, brush, onCameraChange, peers, onCursor };
   const [zoom, setZoom] = useState(80), [level,setLevel] = useState<CanvasLevel>("wander"), [panOpen, setPanOpen] = useState(false), [gestureNotice, setGestureNotice] = useState("");
+  const [compact,setCompact]=useState(false),[viewOpen,setViewOpen]=useState(false);
+  const saveView=useCallback(()=>{
+    if(!initialized.current||!viewport.current.width)return;
+    const saved=encodeCanvasView(latest.current.world,{...camera.current,...viewport.current});
+    if(saved)try{localStorage.setItem(CANVAS_VIEW_KEY,saved);}catch{/* Storage is optional. */}
+  },[]);
+  const closeViewTools=()=>{setViewOpen(false);setPanOpen(false);viewToggle.current?.focus({preventScroll:true});};
 
   const drawCursors = useCallback(() => {
     const element = board.current, cursorTarget = cursorCanvas.current, cursors = cursorTarget?.getContext("2d");
@@ -161,10 +171,24 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const center = screenToWorld(camera.current, { x: element.clientWidth / 2, y: element.clientHeight / 2 });
     if (coordinate.current) coordinate.current.textContent = `x ${Math.round(center.x).toLocaleString()} · y ${Math.round(center.y).toLocaleString()}`;
     viewport.current = { width: element.clientWidth, height: element.clientHeight };
+    if(saveTimer.current)clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(saveView,500);
     geography.current?.update({...camera.current,...viewport.current});
     latest.current.onCameraChange?.({ ...camera.current, ...viewport.current });
     setZoom(z < .01 ? Math.round(z * 1000) / 10 : Math.round(z * 100)); draw();positionFloating();
-  }, [draw,positionFloating]);
+  }, [draw,positionFloating,saveView]);
+
+  useEffect(()=>{
+    const hidden=()=>{if(document.visibilityState==="hidden")saveView();};
+    window.addEventListener("pagehide",saveView);document.addEventListener("visibilitychange",hidden);
+    return()=>{if(saveTimer.current)clearTimeout(saveTimer.current);saveView();window.removeEventListener("pagehide",saveView);document.removeEventListener("visibilitychange",hidden);};
+  },[saveView]);
+  useEffect(()=>{setViewOpen(false);setPanOpen(false);},[geographyQuiet,!!pending]);
+  useEffect(()=>{
+    if(!viewOpen)return;
+    const outside=(event:PointerEvent)=>{if(event.target instanceof Element&&!event.target.closest(".canvas-view-controls")){setViewOpen(false);setPanOpen(false);}};
+    window.addEventListener("pointerdown",outside);return()=>window.removeEventListener("pointerdown",outside);
+  },[viewOpen]);
 
   useEffect(()=>{
     positionFloating();
@@ -208,12 +232,20 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     animateCamera(single ? storyCamera(points, size) : frameCamera(points, size, { padding: 42, maxZoom: 1 }));
   }, [animateCamera]);
 
-  const entryView = useCallback((animate = true, closerMobile = false) => {
+  const entryView = useCallback((animate = true, first = false) => {
     const element = board.current;
     if (!element) return;
-    const occupied = closerMobile?atlasArrivalBounds(latest.current.areas):occupiedBounds(latest.current.areas,[]);
     const size = { width: element.clientWidth, height: element.clientHeight };
-    const target = frameCamera([occupied ?? { x: 0, y: 0, width: 1200, height: 720 }], size, { padding: element.clientWidth < 700 ? 35 : 64, maxZoom: closerMobile?.4:.85 });
+    let target:Camera;
+    if(first){
+      const link=parseSharedPlace(window.location.hash);
+      let saved:Camera|null=null;
+      try{saved=decodeCanvasView(localStorage.getItem(CANVAS_VIEW_KEY),latest.current.world,size);}catch{/* Storage may be blocked. */}
+      target=link?sharedPlaceCamera(link,size):saved??initialWorldCamera(latest.current.world,latest.current.areas,size);
+    }else{
+      const occupied=occupiedBounds(latest.current.areas,[]);
+      target=frameCamera([occupied??{x:0,y:0,width:1200,height:720}],size,{padding:size.width<=700?35:64,maxZoom:.85});
+    }
     animateCamera(target, animate);
   }, [animateCamera]);
 
@@ -221,6 +253,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     const element = board.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
+      setCompact(element.clientWidth<=700);
       if (initialized.current && element.clientWidth === viewport.current.width && element.clientHeight === viewport.current.height) return;
       stopCamera();
       if (!initialized.current) { initialized.current = true; entryView(false, true); }
@@ -284,7 +317,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (!element || !data.onCursor) return;
     const rect = element.getBoundingClientRect(), worldPoint = screenToWorld(camera.current, { x: point.x - rect.left, y: point.y - rect.top });
     const tool = data.brush?.enabled || data.pending?.kind === "paint" ? "paint" : data.pending?.kind === "memory" ? "note" : "wander";
-    const cells = tool === "paint" ? preview ?? mergePaintCells(data.brush?.cells ?? [], stroke.current) : [];
+    // A saved local preview is not a drawing gesture. Hover, pan and tool
+    // updates must never renew another visitor's Painting indicator.
+    const cells = tool === "paint" ? preview ?? [] : [];
     data.onCursor({ ...worldPoint, tool, stroke: cells.slice(-128) });
   }, []);
   useEffect(() => {
@@ -298,6 +333,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (!points.length) { setGestureNotice("You’ve reached this pilot’s drawing limit. Pan back toward the commons."); return; }
     stroke.current = mergePaintCells(stroke.current, points.map(p => ({ ...p, color: currentBrush.color })));
     g.previousCell = cell; draw();
+    return stroke.current;
   };
   const finish = (pointerId: number, cancelled: boolean) => {
     if (board.current) delete board.current.dataset.gesture;
@@ -308,8 +344,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       if (g?.kind === "paint" && !cancelled && latest.current.brush && !latest.current.brush.disabled) {
         const cells = mergePaintCells(latest.current.brush.cells, stroke.current);
         latest.current.brush.onChange(cells);
-        if (point) publishPointer(point, cells);
-      } else if (point) publishPointer(point, latest.current.brush?.cells ?? []);
+        if (point) publishPointer(point, stroke.current);
+      } else if (point) publishPointer(point);
       if (g?.kind === "pan" && !g.moved && !cancelled && point && pending) { const worldPoint = screenToWorld(camera.current, localPoint(point)); onPosition(worldPoint.x, worldPoint.y); }
       gesture.current = null; stroke.current = []; draw();
     } else { gesture.current = null; stroke.current = []; draw(); }
@@ -335,6 +371,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       // on the native button and opens once through its normal click handler.
       if (!card) event.currentTarget.setPointerCapture(event.pointerId);
       lastPointer.current = point;
+      let preview:Pixel[]|undefined;
       if (pointers.current.size === 2) {
         for (const pointerId of pointers.current.keys()) event.currentTarget.setPointerCapture(pointerId);
         stroke.current = []; draw();
@@ -344,9 +381,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
         const kind = brush?.enabled && !brush.disabled && !event.shiftKey && !event.altKey ? "paint" : "pan";
         event.currentTarget.dataset.gesture = kind;
         gesture.current = { kind, start: point, camera: { ...camera.current }, moved: false, memoryId: card?.dataset.memoryId }; stroke.current = [];
-        if (kind === "paint") paintAt(point);
+        if (kind === "paint") preview=paintAt(point);
       }
-      publishPointer(point);
+      publishPointer(point,preview);
     }}
     onPointerMove={event => {
       if (event.target instanceof Element && event.target.closest("input,textarea,select,.canvas-overlay")) return;
@@ -355,20 +392,21 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       pointers.current.set(event.pointerId, point);
       const g = gesture.current;
       if (!g) { publishPointer(point); return; }
+      let preview:Pixel[]|undefined;
       if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()], middle = localPoint({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         const next = zoomCameraAt(g.camera, Math.hypot(b.x - a.x, b.y - a.y) / Math.max(g.distance!, 1), localPoint(g.start));
         camera.current = { x: middle.x - g.anchor!.x * next.z, y: middle.y - g.anchor!.y * next.z, z: next.z }; applyCamera();
-      } else if (g.kind === "paint") paintAt(point);
+      } else if (g.kind === "paint") preview=paintAt(point);
       else {
         const dx = point.x - g.start.x, dy = point.y - g.start.y;
         g.moved ||= Math.hypot(dx, dy) > 5;
         if (g.moved && g.memoryId && !event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
         camera.current = { ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy }; applyCamera();
       }
-      publishPointer(point);
+      publishPointer(point,preview);
     }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
-    <WorldGeography ref={geography} areas={derivedAreas} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
+    <WorldGeography ref={geography} areas={derivedAreas} signals={signals} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />
     <div className="world-transformed" ref={transformed}>
       <svg className="memory-threads" width="1200" height="720" aria-hidden="true">{relationships.map(memory => {
@@ -386,14 +424,18 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     {gestureNotice ? <span className="canvas-guidance canvas-overlay" role="status">{gestureNotice}</span> : null}
     {floating?<div ref={floatingElement} className={`world-story-overlay canvas-overlay is-${floating.mode}`}>{floating.content}</div>:null}
     {children}
+    <div className="canvas-view-controls canvas-overlay" onKeyDown={event=>{if(event.key==="Escape"&&viewOpen){event.stopPropagation();closeViewTools();}}}>
+    <button ref={viewToggle} type="button" className="canvas-view-toggle" hidden={!compact||geographyQuiet||!!pending} aria-label="View controls" aria-description={`${CANVAS_LEVELS.find(option=>option.id===level)?.label}, ${zoom}%`} aria-controls="canvas-view-menu" aria-expanded={viewOpen} onClick={()=>setViewOpen(!viewOpen)}><span>{CANVAS_LEVELS.find(option=>option.id===level)?.label}</span><small>{zoom}%</small><ChevronDown size={14}/></button>
+    <div id="canvas-view-menu" className="canvas-view-menu" hidden={compact&&!viewOpen}>
     <div className="canvas-levels canvas-overlay" role="group" aria-label="Canvas zoom levels">
-      {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));}}>{option.label}</button>)}
+      {CANVAS_LEVELS.map(option=><button type="button" key={option.id} aria-label={option.description} aria-pressed={level===option.id} onClick={()=>{const element=board.current;if(element)animateCamera(presetCamera(camera.current,{width:element.clientWidth,height:element.clientHeight},option.id));if(compact)closeViewTools();}}>{option.label}</button>)}
     </div>
     <div className="canvas-zoom canvas-overlay">
       <ToolButton onClick={() => zoomBy(1 / 1.25)} label="Zoom out"><Minus size={24} /></ToolButton><span>{zoom}%</span><ToolButton onClick={() => zoomBy(1.25)} label="Zoom in"><Plus size={24} /></ToolButton><span className="zoom-divider" />
       <ToolButton onClick={() => entryView()} label="See the whole mosaic"><Maximize2 size={24} /></ToolButton><ToolButton onClick={() => setPanOpen(!panOpen)} label="Move the view" aria-expanded={panOpen}><Compass size={24} /></ToolButton>
       {panOpen ? <div className="pan-controls"><button type="button" aria-label="Pan up" onClick={() => move(0, 100)}><ArrowUp size={17} /></button><button type="button" aria-label="Pan left" onClick={() => move(100, 0)}><ArrowLeft size={17} /></button><button type="button" aria-label="Pan down" onClick={() => move(0, -100)}><ArrowDown size={17} /></button><button type="button" aria-label="Pan right" onClick={() => move(-100, 0)}><ArrowRight size={17} /></button></div> : null}
     </div>
+    </div></div>
     <div className="canvas-footnote canvas-overlay">{latestPaint ? `@${latestPaint.authorName} · ${latestPaint.description}` : "A shared picture. Room for your next idea."}</div>
   </div>;
 }

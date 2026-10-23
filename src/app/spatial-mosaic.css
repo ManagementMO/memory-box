@@ -18,6 +18,16 @@
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card::after { display: block; width: 12px; height: 12px; }
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card:not(.is-dimmed) { opacity: 1; }
 .living-mosaic-app .world-transformed[data-level=whole] .memory-card.image { height: var(--memory-height) !important; }
+/* At world distance, real paper/photo silhouettes carry the composition.
+ * Their full accessible names and original content remain available on open. */
+.living-mosaic-app .world-transformed:not([data-level=whole]) :is(.memory-paper-copy,.memory-author,.memory-photo>span,.memory-link>strong,.memory-link>span,.memory-thread-tab,.memory-build-badge) { visibility: visible; }
+.living-mosaic-app .world-transformed[data-level=whole] .memory-paper-copy,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-author,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-photo>span,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-link>strong,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-link>span,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-thread-tab,
+.living-mosaic-app .world-transformed[data-level=whole] .memory-build-badge { visibility: hidden; }
 .living-mosaic-app .memory-threads { overflow: visible; }
 .living-mosaic-app .memory-threads path { opacity: .3; stroke-dasharray: none; }
 .living-mosaic-app .memory-threads path.is-emphasized { opacity: .9; stroke-width: 3px; }

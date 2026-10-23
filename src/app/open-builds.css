@@ -9,6 +9,11 @@
 .build-request { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 14px; font-size: 13px; line-height: 1.5; }
 .build-tools { display: flex; flex-wrap: wrap; gap: 7px; }
 .build-tools .button:first-child { width: 100%; }
+.build-details[hidden] { display: none; }
+.living-mosaic-app .build-tools.is-compact { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.living-mosaic-app .build-tools.is-compact .button { width: auto; min-width: 0; min-height: 44px; padding: 5px 6px; gap: 5px; }
+.living-mosaic-app .is-build-compact .panel-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.living-mosaic-app .is-build-compact .panel-content { padding: 7px 8px; }
 .build-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin: 12px 0 4px; }
 .build-workbench > .fine-print { margin-top: 10px; }
 .build-unavailable { display: grid; gap: 8px; }
@@ -21,6 +26,7 @@
 .joined-build-return small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; margin-top: 2px; }
 .together-panel > .live-build-link { margin: 8px 0 16px; }
 @media (max-width: 700px) {
+  .living-mosaic-app .world-story-overlay > .panel-build:not(.is-build-compact) { max-height: min(50dvh,380px); }
   .build-tools .button { min-height: 44px; }
   .build-links .text-button, .build-workbench > .text-button { min-height: 44px; }
   .build-workbench .build-request { margin-bottom: 10px; }

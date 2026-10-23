@@ -1,5 +1,5 @@
 import { expect, test as base, type Page } from "@playwright/test";
-import { browserEnabled, cameraState, WorldFixture } from "./helpers/open-world-fixture";
+import { browserEnabled, cameraState, openViewTools, WorldFixture } from "./helpers/open-world-fixture";
 
 const test = base.extend<{ world: WorldFixture }>({
   world: async ({ page: _page }, use, info) => {
@@ -44,6 +44,7 @@ test("actual idle membership becomes a world-aligned cursor across zoom and leav
   await page.getByRole("button", { name: "Close panel", exact: true }).click();
 
   // Different viewport transforms must not move a peer to the same screen pixel.
+  await openViewTools(page);
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   const senderCamera = await cameraState(visitor);

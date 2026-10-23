@@ -8,6 +8,8 @@ import { api, uploadImage } from "@/lib/client/api";
 import { getBrowserSupabase } from "@/lib/client/supabase";
 import { useWorld } from "@/lib/client/use-world";
 import { usePresence } from "@/lib/client/use-presence";
+import {useWorldActivity} from "@/lib/client/use-world-activity";
+import type {PlaceSignal} from "@/lib/client/world-activity";
 import { usePaintTurn } from "@/lib/client/use-paint-turn";
 import type { PaintTurnTiming } from "@/lib/client/paint-turn";
 import { areaAtPoint, chooseWorldStory, newPlaceGround, worldAreas, type WorldArea } from "@/lib/client/world-atlas";
@@ -52,6 +54,7 @@ export function MemoryBoxApp() {
   const [panel, setPanel] = useState<Panel>(null), [selectedId, setSelectedId] = useState<string | null>(null);
   const [landmarkIndex, setLandmarkIndex] = useState(0);
   const [joinedBuildId,setJoinedBuildId] = useState<string|null>(null);
+  const [buildCollapsed,setBuildCollapsed]=useState(false);
   const visited = useRef<string[]>([]);
   const [draft, setDraft] = useState<MemoryDraft | null>(null), [pending, setPending] = useState<Pending | null>(null);
   const [shape, setShape] = useState<ShapeId>("goose"), [paintColor, setPaintColor] = useState("#F3617C");
@@ -126,13 +129,15 @@ export function MemoryBoxApp() {
   const lastPaintSource=lastPaint?.buildId&&world?.memories.some(memory=>memory.id===lastPaint.buildId)?lastPaint.buildId:undefined;
   const invitations = useMemo(()=>openBuildInvitations(world?.memories??[]),[world]);
   const areas=useMemo(()=>worldAreas(world?.memories??[],world?.pixels??[]),[world?.memories,world?.pixels]);
+  const placeSignals=useWorldActivity(world,areas,presence.peers);
   const areasRef=useRef(areas);areasRef.current=areas;
   const active = sceneById(activeScene);
   const campusAvailable=!!world&&!!campusArrival(world.memories);
   const landmarks=campusAvailable?[...WATERLOO_LANDMARKS,...LIVING_LANDMARKS]:LIVING_LANDMARKS;
   const landmark = landmarks[landmarkIndex % landmarks.length];
   const invitationLandmark=useRef(landmark);invitationLandmark.current=landmark;
-  const panelTitle = panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.isBuildInvitation ? "Start a build" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
+  const compactBuild=panel==="build"&&buildCollapsed&&!!selected?.isBuildInvitation;
+  const panelTitle = compactBuild&&selected?originalLabel(selected):panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.isBuildInvitation ? "Start a build" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
   const canWrite = !!identity && connection === "live";
   const isAnswer = (data: SearchResponse | AnswerResponse | null): data is AnswerResponse => !!data && "status" in data;
   const currentSearchData = useMemo(() => searchData && world ? projectSearch(searchData, world.memories) : null, [searchData, world]);
@@ -225,8 +230,14 @@ export function MemoryBoxApp() {
   const joinBuild = (id:string) => {
     if (brushPixels.length && joinedBuildId!==id) { setPanel("paint");setAnnouncement("Add or clear your pixel preview before moving to another build.");return; }
     const memory=world?.memories.find(item=>item.id===id);
+    const compact=joinedBuildId===id&&buildCollapsed;
+    setBuildCollapsed(compact);
     setJoinedBuildId(id);setSelectedId(id);setPending(null);setPanel("build");setBackToSearch(false);setBackToDraft(false);setFormError("");setAnnouncement("");setArrival(null);
-    if(memory){setActiveScene(memory.sceneId);focusNeighborhood(memory,"compose");}
+    if(memory){setActiveScene(memory.sceneId);focusNeighborhood(memory,compact?"peek":"compose");}
+  };
+  const toggleBuildDetails=()=>{
+    if(!selected?.isBuildInvitation)return;
+    const compact=!buildCollapsed;setBuildCollapsed(compact);focusNeighborhood(selected,compact?"peek":"compose");
   };
   const visitLandmark = (index: number) => {
     setLandmarkIndex(index); const place=landmarks[index];setActiveScene(place.sceneId);setSelectedId(null);setPending(null);setPanel("together");
@@ -241,6 +252,16 @@ export function MemoryBoxApp() {
     if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
     closePanel();setPending(null);setActiveScene(sceneForPoint(area.x+area.width/2,area.y+area.height/2));cameraTo([area],"frame");
     setAnnouncement("");requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
+  };
+  const visitSignal=(signal:PlaceSignal)=>{
+    if(busy)return;
+    if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
+    if(signal.memoryId&&world?.memories.some(memory=>memory.id===signal.memoryId)){
+      peekMemory(signal.memoryId,true);previewInvoker.current=document.querySelector<HTMLElement>(".world-location");return;
+    }
+    closePanel();setPending(null);setActiveScene(sceneForPoint(signal.x,signal.y));
+    cameraTo([{x:signal.x-240,y:signal.y-180,width:480,height:360}],"frame");
+    requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
   };
   const visitMapPoint = (point:{x:number;y:number}) => {
     const nearby=areaAtPoint(areas,point);if(nearby){visitArea(nearby);return;}
@@ -292,7 +313,10 @@ export function MemoryBoxApp() {
   };
   const respondToBuild = (type:MemoryType) => {
     if(!selected?.isBuildInvitation)return;
-    if(draft&&!draft.editId&&draft.inspiredBy===selected.id&&draft.type===type)resumeDraft();
+    if(draft&&(draft.editId||draft.inspiredBy||draft.paintOperationId||draft.title.trim()||draft.body.trim()||draft.url.trim()||draft.file||draft.assetId||draft.previewUrl)){
+      resumeDraft();
+      if(draft.editId||draft.inspiredBy!==selected.id||draft.type!==type)setAnnouncement("Your draft is still here. Finish it before starting another contribution.");
+    }
     else startMemory(selected.id,undefined,type);
   };
   const useLandmarkTool = (tool:"paint"|"text"|"image") => {
@@ -574,7 +598,7 @@ export function MemoryBoxApp() {
 
   function renderPanel() {
     if (!world) return null;
-    if(panel==="world")return <WorldMap world={world} areas={areas} camera={mapCamera} onVisit={visitArea} onPoint={visitMapPoint} onStart={startPlace} disabled={!!busy}/>;
+    if(panel==="world")return <WorldMap world={world} areas={areas} camera={mapCamera} onVisit={visitArea} onPoint={visitMapPoint} onStart={startPlace} disabled={!!busy} signals={placeSignals} onSignal={visitSignal}/>;
     if (panel === "share" && sharePlace) return <SharePlacePanel world={world} place={sharePlace} onBack={sharePlace.memoryId && selected ? () => setPanel("inspect") : undefined} />;
     if (panel === "people") return <div className="people-panel">
       <div className="presence-self"><span className="person-avatar">{identity?.name.slice(0,1).toUpperCase() || "Y"}</span><div><strong>{identity?.name || "You"}</strong><small>{presence.connected ? "You’re here" : "Joining live presence…"}</small></div><button type="button" className="text-button" aria-label={`Your profile, ${identity?.name ?? "guest"}`} onClick={openProfile}>Your name<ArrowUpRight size={13}/></button></div>
@@ -589,7 +613,7 @@ export function MemoryBoxApp() {
       {presence.peers.some(peer=>peer.tool==="paint")?<button type="button" className="text-button live-build-link" onClick={followLivePainter}><Paintbrush size={16}/>Visit a live painter<ArrowUpRight size={14}/></button>:null}
       <h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("paint")}><Paintbrush size={16}/>Paint there</button><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("text")}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>useLandmarkTool("image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div>
     </div>;
-    if(panel==="build")return <BuildWorkbench memory={selected} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
+    if(panel==="build")return <BuildWorkbench memory={selected} compact={!!compactBuild} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
     if (panel === "compose" && draft) return <MemoryComposer draft={draft} onChange={next => { setDraft(next); setFormError(""); }} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => { draftScene.current = activeScene; openMemory(id, false, true); }} onPreview={previewMemory} busy={busy} error={formError} />;
     if (panel === "inspect") return renderInspector();
     if (panel === "search") return renderSearch();
@@ -606,10 +630,11 @@ export function MemoryBoxApp() {
   const PanelIcon = panel === "share" ? MapPin : panel === "paint" ? Paintbrush : panel === "people" || panel === "together" || panel === "build" ? UsersRound : panel === "search" ? searchMode === "ask" ? MessageCircle : Search : panel === "profile" ? UserRound : panel === "compose" ? draft?.type === "image" ? ImageIcon : StickyNote : panel === "report" ? Flag : StickyNote;
   const inlineReply=panel==="compose"&&!!parent&&!draft?.editId;
   const inlineBuild=panel==="build"&&!!selected;
-  const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}`} aria-label={panelTitle}>
+  const contextPanel=panel&&world?<aside ref={panelScroller} className={`context-panel panel-${panel}${panelExpanded?" panel-expanded":""}${compactBuild?" is-build-compact":""}`} aria-label={panelTitle}>
     <div className="panel-mobile-handle"/>
     <div className="panel-header">
-      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="world"?<AreaMark emblem="map"/>:panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span>{panelTitle}</h2>
+      <h2 ref={panelHeading} tabIndex={-1}><span className="panel-title-icon">{panel==="world"?<AreaMark emblem="map"/>:panel==="paint"||panel==="compose"||panel==="together"||panel==="build"||panel==="people"?<PixelToolIcon tool={panel==="paint"?"paint":panel==="compose"?draft?.type==="image"?"photo":"note":"together"}/>:<PanelIcon size={24}/>}</span><span className="panel-title-text">{panelTitle}</span></h2>
+      {panel==="build"&&selected?.isBuildInvitation?<button type="button" className="icon-button" aria-label={buildCollapsed?"Expand build details":"Collapse build details"} aria-expanded={!buildCollapsed} aria-controls={`build-details-${selected.id}`} onClick={toggleBuildDetails}>{buildCollapsed?<Maximize2 size={16}/>:<Minimize2 size={16}/>}</button>:null}
       {panel==="inspect"?<button type="button" className="icon-button panel-expand" aria-label={panelExpanded?"Collapse panel":"Expand panel"} onClick={()=>setPanelExpanded(!panelExpanded)}>{panelExpanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</button>:null}
       <button type="button" className="icon-button" aria-label="Close panel" disabled={!!busy} onClick={closePanel}><X size={18}/></button>
     </div>
@@ -633,7 +658,7 @@ export function MemoryBoxApp() {
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
-      {world ? <div className="world-column"><WorldCanvas world={world} areas={areas} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
+      {world ? <div className="world-column"><WorldCanvas world={world} areas={areas} signals={placeSignals} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
         <div className="world-social-controls canvas-overlay" role="group" aria-label="People and sharing">
           {!panel && !pending ? <button type="button" className="meet-here-button" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
           <button type="button" className="world-presence" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>

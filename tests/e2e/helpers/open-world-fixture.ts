@@ -247,3 +247,9 @@ export async function cameraState(page: Page) {
     return { x: read("data-camera-x"), y: read("data-camera-y"), zoom: read("data-camera-zoom") };
   });
 }
+
+/** Phone controls are disclosed on demand; desktop controls stay in place. */
+export async function openViewTools(page:Page){
+  const toggle=page.getByRole("button",{name:"View controls",exact:true});
+  if(await toggle.isVisible()&&await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
+}

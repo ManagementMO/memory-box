@@ -1,5 +1,5 @@
 import {expect,test as base} from "@playwright/test";
-import {browserEnabled,cameraState,sameOrigin,WorldFixture,writesEnabled} from "./helpers/open-world-fixture";
+import {browserEnabled,cameraState,openViewTools,sameOrigin,WorldFixture,writesEnabled} from "./helpers/open-world-fixture";
 import type {Memory,Pixel} from "../../src/lib/types";
 import sharp from "sharp";
 import {mkdir} from "node:fs/promises";
@@ -14,9 +14,10 @@ test("three canvas distances preserve the actual place and keep originals usable
   const board=page.getByRole("region",{name:"The shared Memory Box world"});
   const original=await cameraState(page);
   const box=await board.boundingBox();expect(box).not.toBeNull();
-  expect(original.zoom).toBeLessThan(.52);
+  if(info.project.name==="mobile")expect(original.zoom).toBeGreaterThanOrEqual(.65);else expect(original.zoom).toBeLessThan(.52);
   const center={x:(box!.width/2-original.x)/original.zoom,y:(box!.height/2-original.y)/original.zoom};
-  for(const [label,level] of [["View the whole patch","whole"],["View at wandering distance","wander"],["View up close","close"]]){
+  for(const [label,level] of [["World view","whole"],["Nearby view","wander"],["Close-up view","close"]]){
+    await openViewTools(page);
     await page.getByRole("button",{name:label,exact:true}).click();
     await expect(board).toHaveAttribute("data-zoom-level",level);
     const current=await cameraState(page);
@@ -24,14 +25,15 @@ test("three canvas distances preserve the actual place and keep originals usable
     expect(Math.abs((box!.height/2-current.y)/current.zoom-center.y)).toBeLessThan(.1);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
   }
-  await page.getByRole("button",{name:"View the whole patch",exact:true}).click();
+  await openViewTools(page);await page.getByRole("button",{name:"World view",exact:true}).click();
+  await openViewTools(page);
   for(let step=0;step<5;step++)await page.getByRole("button",{name:"Zoom out",exact:true}).click();
   await expect(page.locator('.world-transformed')).toHaveAttribute('data-map','true');
   const styles=await page.locator('.memory-card.text').first().evaluate(element=>({
-    body:getComputedStyle(element.querySelector('.memory-paper-copy')!).display,
+    body:getComputedStyle(element.querySelector('.memory-paper-copy')!).visibility,
     pin:getComputedStyle(element.querySelector('.memory-pin')!).display,
     physicalWidth:parseFloat(getComputedStyle(element).width),
-  }));expect(styles.body).not.toBe("none");expect(styles.pin).toBe("none");expect(styles.physicalWidth).toBeLessThan(230);
+  }));expect(styles.body).toBe("hidden");expect(styles.pin).toBe("none");expect(styles.physicalWidth).toBeLessThan(230);
   expect(await page.locator('.memory-card.image').first().locator('.memory-photo').evaluate(e=>getComputedStyle(e).display)).toBe('flex');
   await page.getByRole("button",{name:"Wander into a story",exact:true}).click();
   await expect(page.getByRole('region',{name:'Story preview',exact:true})).toBeVisible();
@@ -45,6 +47,7 @@ test("three canvas distances preserve the actual place and keep originals usable
   await page.getByRole("button",{name:"Close panel",exact:true}).click();
   if(info.project.name==="mobile"){
     await page.setViewportSize({width:320,height:740});
+    await openViewTools(page);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     const a=await page.locator('.canvas-levels').boundingBox();expect(a!.x).toBeGreaterThanOrEqual(0);expect(a!.x+a!.width).toBeLessThanOrEqual(320);
   }

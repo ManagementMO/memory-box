@@ -4,9 +4,9 @@ import { screenToWorld, type Camera } from "./canvas-geometry";
 
 export type CanvasLevel = "whole" | "wander" | "close";
 export const CANVAS_LEVELS = [
-  {id:"whole",label:"Whole patch",description:"View the whole patch"},
-  {id:"wander",label:"Wander",description:"View at wandering distance"},
-  {id:"close",label:"Up close",description:"View up close"},
+  {id:"whole",label:"World",description:"World view"},
+  {id:"wander",label:"Nearby",description:"Nearby view"},
+  {id:"close",label:"Close-up",description:"Close-up view"},
 ] as const;
 
 export function canvasLevel(zoom: number): CanvasLevel {
