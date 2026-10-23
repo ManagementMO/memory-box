@@ -18,7 +18,7 @@ vi.mock("../src/components/tool-button",()=>({
   ToolButton:({label,children,...props}:{label:string;children:ReactNode})=>createElement("button",{...props,"aria-label":label},children),
 }));
 vi.mock("../src/components/world-canvas",()=>({WorldCanvas:(props:ComponentProps<typeof WorldCanvas>)=>{
-  harness.canvas=props;return createElement("div",null,props.children,props.floating?.content);
+  harness.canvas=props;return createElement("div",null,createElement("button",{className:"world-location","aria-label":"Open world map",onClick:props.onWorldMap},"Map"),props.children,props.floating?.content);
 }}));
 
 const invitation=(id:string,x:number):Memory=>({id,authorId:"owner",authorName:"Someone",type:"text",title:`Build ${id}`,body:"Help make an outfit.",url:null,imageUrl:null,color:"#FFF3BF",x,y:300,sceneId:"mixtape",inspiredBy:null,paintOperationId:null,createdAt:"2026-10-22T12:00:00Z",updatedAt:"2026-10-22T12:00:00Z",version:1,indexStatus:"ready",isSeed:false,isBuildInvitation:true});
@@ -70,6 +70,17 @@ describe("build tool source and destination",()=>{
     expect(harness.canvas!.command.type).toBe("frame");
     const destination=harness.canvas!.command.points![0];
     expect(destination.x).toBeGreaterThan(3000);expect(destination.x).toBeLessThan(4100);
+  });
+
+  it("returns focus to Map after closing an actual new-original activity preview",async()=>{
+    vi.stubGlobal("requestAnimationFrame",(callback:FrameRequestCallback)=>{callback(0);return 1;});
+    vi.spyOn(HTMLElement.prototype,"getBoundingClientRect").mockReturnValue({x:0,y:0,width:44,height:44,top:0,right:44,bottom:44,left:0,toJSON(){return {};}});
+    harness.world={...harness.world!,revision:2,memories:[...harness.world!.memories,invitation("c",8000)]};
+    await act(async()=>root.render(createElement(MemoryBoxApp)));
+    await click('[aria-label="Explore canvas"]');await click('.world-place-activity');
+    expect(host.querySelector('.story-peek')?.getAttribute('data-story-id')).toBe("c");
+    await click('[aria-label="Close story preview"]');
+    expect(document.activeElement).toBe(host.querySelector('.world-location'));
   });
 
   it("starts a place on open ground as an unpublished invitation",async()=>{
@@ -138,6 +149,31 @@ describe("build tool source and destination",()=>{
     await join("b");
     expect(host.querySelector('.panel-build.is-build-compact')).toBeNull();
     expect(host.querySelector('.build-request')?.closest('[hidden]')).toBeNull();
+  });
+
+  it.each(["text","image"])("resumes an unfinished compact-build %s instead of discarding it for the other tool",async(type)=>{
+    vi.stubGlobal("URL",class extends URL {static createObjectURL=vi.fn(()=>"blob:parked-photo");static revokeObjectURL=vi.fn();});
+    await join("a");await click('[aria-label="Collapse build details"]');
+    await click(`.build-tools .button:nth-child(${type==="text"?2:3})`);
+    const textarea=host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')!;
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!;
+    await act(async()=>{setter.call(textarea,"Keep this contribution");textarea.dispatchEvent(new Event("input",{bubbles:true}));});
+    if(type==="image"){
+      const input=host.querySelector<HTMLInputElement>('[aria-label="Choose image"]')!;
+      Object.defineProperty(input,"files",{value:[new File(["image"],"outfit.png",{type:"image/png"})]});
+      await act(async()=>input.dispatchEvent(new Event("change",{bubbles:true})));
+    }
+    await click('[aria-label="Close panel"]');await join("a");
+    expect(host.querySelector('.panel-build.is-build-compact')).not.toBeNull();
+    await click(`.build-tools .button:nth-child(${type==="text"?3:2})`);
+    expect(host.querySelector('.composer')?.getAttribute('data-kind')).toBe(type);
+    expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("Keep this contribution");
+    expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
+    if(type==="image"){
+      expect(host.querySelector<HTMLImageElement>('.upload-box img')?.src).toBe("blob:parked-photo");
+      expect(host.querySelector('.upload-filename')?.textContent).toBe("outfit.png");
+    }
+    expect(harness.api).not.toHaveBeenCalled();
   });
 
   it.each(["closed","removed"])("releases compact tools when their invitation is %s",async(state)=>{

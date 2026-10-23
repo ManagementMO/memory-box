@@ -67,6 +67,14 @@
       "--action-deep": {
         "value": "#7360b8",
         "source": "src/app/toybox.css"
+      },
+      "--ui-live-ink": {
+        "value": "#9b385b",
+        "source": "src/app/compact-ui.css"
+      },
+      "--ui-live-paper": {
+        "value": "#fce8ef",
+        "source": "src/app/compact-ui.css"
       }
     },
     "typography": {
@@ -112,13 +120,18 @@
       "All six tool labels visible on touch; stationary hit targets at least 44px",
       "No fabricated participants, stories or activity",
       "Open builds show actual current invitations and source-backed contributions; joining does not imply membership, completion or contributor counts",
-      "Floating mobile workbench and reply sheets reserve 82px for the dock, scroll within 60dvh/440px and keep actions at least 44px tall",
+      "Floating mobile sheets reserve 82px for the dock and keep actions at least 44px tall; full workbenches scroll within min(50dvh, 380px), compact workbenches retain the source title and three tools, and reply sheets retain 60dvh/440px",
+      "World, Nearby and Close-up preserve the current place; first-time phones arrive at a readable actual original, and World hides small paper details without replacing authored footprints",
+      "Phones disclose distance/zoom/pan/fit through one View controls button; closed tools leave no keyboard targets and Escape/preset selection restores disclosure focus",
+      "Store public center/scale only, scoped to world/epoch; shared links take precedence and invalid or blocked browser storage must not interrupt navigation",
+      "Compact-build tool switches resume a meaningful unfinished draft before replacing its text, image or source; a same-source Paint round trip preserves compact mode",
+      "At most six occupied places show actual activity: fresh drawing gestures for Painting, accepted later original versions or cell revisions for 12-second recent changes; initial history, unchanged polling, epoch resets, cursor-only movement and retained previews stay quiet",
       "Places derive only from actual stored originals or pixels on the continuous signed sparse plane; pixel-only places survive removal of their last original",
       "Faint stepped pastel geography and dotted travel trails stay beneath authored art; labels try at most 10 nearby screen-space positions clear of viewport/control margins, prior labels and projected paper/photo/pixel occupancy, then hide if none is clear; hide while reading, painting, placing or using a panel",
       "Authored notes/photos retain click and drag priority over geographic wayfinding on desktop/mobile: transformed authored layer z-index 1, place labels 0, World control 15 and pointer-transparent cursors 11; visible label lettering stays clear of authored materials",
       "World map provides actual-content footprints, a current viewport and a keyboard/touch destination list; all three existing zoom levels preserve the current place",
       "Start a place opens an unpublished invitation with explicit placement; substantive or linked drafts and staged paint resume instead, while a pristine empty unlinked draft may be replaced by that explicit action",
-      "Mobile World control stays compact and clear of Meet here/presence; the map sheet reserves 82px for the dock, stays within min(68dvh, 490px) and retains visible focus and at least 44px action targets",
+      "Mobile Map, Meet here and presence share one compact row with 44px targets; the map sheet reserves 82px for the dock, stays within min(68dvh, 490px) and retains visible focus",
       "Cache miniature artwork by content and size, update its viewport on a separate transparent canvas and query the cached sparse index for visible main-layer pixels; label occupancy reuses cached pixel and tilt-padded paper/photo indices with a first-hit limit, preserving complete ordinary query results",
       "Keep real-time, painting, private image upload, build-on and source-backed search behavior",
       "Respect reduced motion; retain keyboard focus and tooltip dismissal"
@@ -129,10 +142,15 @@
       "Icon-only mobile navigation",
       "Large motion runtimes for simple visual feedback",
       "Invented or empty map destinations, topic-enforced place boundaries or geographic scenery presented as saved contributions",
-      "Repainting miniature artwork for camera-only changes or scanning every stored pixel on each main-canvas camera frame"
+      "Repainting miniature artwork for camera, presence, activity or timer-only changes, or scanning every stored pixel on each main-canvas camera frame"
     ]
   },
   "decisions": [
+    {
+      "date": "2026-10-22",
+      "direction": "Readable arrival, compact building and actual spatial activity",
+      "reason": "Keep the incumbent pastel pixel materials while phones arrive at a real readable story and desktop retains an occupied-world overview. Scoped public center/scale restores the last view unless an explicit shared link wins. World, Nearby and Close-up preserve the place; mobile hides their controls behind one accessible disclosure and combines Map, Meet here and presence in one row. Collapse build details retains the source title and three tools, with same-source compact state and guarded unfinished drafts. At most six real places show fresh drawing or accepted later original/pixel revisions; baseline history, hover and retained previews cannot fabricate painting. Coral-on-blush map markers, list actions and clear-space label hints lead to actual originals or stroke cells, expire without a refresh and do not redraw cached miniature artwork. Arrival motion is bounded and reduced motion is static. No dependency, font, authored content, API contract or migration is added."
+    },
     {
       "date": "2026-10-22",
       "direction": "Continuous world of occupied places",
@@ -261,9 +279,33 @@
       "source": "src/lib/client/canvas-levels.ts"
     },
     {
+      "fact": "behavior.readablePhoneArrivalAndValidatedScopedPublicReturnView",
+      "source": "src/lib/client/canvas-arrival.ts"
+    },
+    {
+      "fact": "behavior.hiddenPhoneViewToolsAndDisclosureFocusReturn",
+      "source": "src/components/world-canvas.tsx"
+    },
+    {
+      "fact": "behavior.compactSourceToolsAndGuardedUnfinishedBuildDrafts",
+      "source": "src/components/memory-box-app.tsx"
+    },
+    {
+      "fact": "behavior.currentGestureOnlyPublishesFreshStrokeCells",
+      "source": "src/components/world-canvas.tsx"
+    },
+    {
+      "fact": "behavior.sixActualPlaceSignalsWithRealStrokeLocationsAndBoundedExpiry",
+      "source": "src/lib/client/world-activity.ts"
+    },
+    {
+      "fact": "behavior.quietSnapshotBaselineAndDeadlineDrivenActivityExpiry",
+      "source": "src/lib/client/use-world-activity.ts"
+    },
+    {
       "fact": "behavior.finiteSignedWritePlane",
       "source": "src/lib/world-bounds.ts"
     }
   ],
-  "generatedAt": "2026-10-23T00:12:35Z"
+  "generatedAt": "2026-10-23T01:31:26Z"
 }

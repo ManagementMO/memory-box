@@ -102,19 +102,36 @@ test("two builders keep their source visible and find actual painting and saved 
     await expect(page.locator('.world-place-activity[data-signal-kind="painting"]')).toBeVisible({timeout:3000});
     await capture(page,"activity",info.project.name);
   }finally{await other.mouse.up();}
+  await expect(page.locator('.world-place-activity[data-signal-kind="painting"]')).toHaveCount(0);
+  const hover={x:point.x+35,y:point.y+12};
+  const hoverWorld=await board(other).evaluate((element,point)=>{
+    const r=element.getBoundingClientRect();return{x:Math.round((point.x-r.x-Number((element as HTMLElement).dataset.cameraX))/Number((element as HTMLElement).dataset.cameraZoom)),y:Math.round((point.y-r.y-Number((element as HTMLElement).dataset.cameraY))/Number((element as HTMLElement).dataset.cameraZoom))};
+  },hover);
+  await other.mouse.move(hover.x,hover.y);
+  await expect.poll(()=>page.locator('.world-cursors').evaluate((element,point)=>(JSON.parse(element.getAttribute('data-peer-cursors')||'[]') as {x:number;y:number;tool:string}[]).some(peer=>peer.x===point.x&&peer.y===point.y&&peer.tool==="paint"),hoverWorld)).toBe(true);
+  await expect(page.locator('.world-place-activity[data-signal-kind="painting"]')).toHaveCount(0);
   const painted=other.waitForResponse(r=>new URL(r.url()).pathname==="/api/paint"&&r.request().method()==="POST");
   await other.getByRole("button",{name:"Share preview pixels",exact:true}).click();expect((await painted).status()).toBe(200);
   await expect(page.locator('.world-place-activity[data-signal-kind="paint"]')).toBeVisible();
   await page.locator('.world-place-activity[data-signal-kind="paint"]').click();await expect(page.locator('.world-map-panel')).toHaveCount(0);
   await other.getByRole("button",{name:"Back to build",exact:true}).click();await expect(other.locator('.panel-build.is-build-compact')).toBeVisible();
   await other.getByRole("button",{name:"Add a note",exact:true}).click();await other.locator('.composer-writing textarea').fill("The captain ate the emergency lifeboat. It was brie.");
+  await other.getByRole("button",{name:"Close panel",exact:true}).click();
+  await other.getByRole("button",{name:"Build together",exact:true}).click();await other.locator(`.open-build-list [data-source-id="${source.id}"]`).click();
+  await expect(other.locator('.panel-build.is-build-compact')).toBeVisible();await other.locator('.build-workbench').getByRole("button",{name:"Leave a photo",exact:true}).click();
+  await expect(other.locator('.composer')).toHaveAttribute('data-kind','text');await expect(other.locator('.composer-writing textarea')).toHaveValue("The captain ate the emergency lifeboat. It was brie.");
   await page.getByRole("button",{name:"Explore canvas",exact:true}).click();const note=await publish(other);expect(note.inspiredBy).toBe(source.id);expect(note.authorId).not.toBe(source.authorId);
   const marker=page.locator(`.world-map-signal[data-memory-id="${note.id}"]`);await expect(marker).toBeVisible();await marker.click();
   await expect(page.locator('.story-peek')).toHaveAttribute('data-story-id',note.id);
+  await page.getByRole("button",{name:"Close story preview",exact:true}).click();await expect(page.getByRole("button",{name:"Open world map",exact:true})).toBeFocused();
   await other.getByRole("button",{name:"Build together",exact:true}).click();await other.locator(`.open-build-list [data-source-id="${source.id}"]`).click();
   await other.locator('.build-workbench').getByRole("button",{name:"Leave a photo",exact:true}).click();
   const image=await sharp({create:{width:24,height:24,channels:3,background:"#DCC7F0"}}).png().toBuffer();
   await other.getByLabel("Choose image",{exact:true}).setInputFiles({name:"cheese-boat-flag.png",mimeType:"image/png",buffer:image});await other.locator('.composer-writing textarea').fill("A lilac flag for a very dubious boat.");
+  await other.getByRole("button",{name:"Close panel",exact:true}).click();
+  await other.getByRole("button",{name:"Build together",exact:true}).click();await other.locator(`.open-build-list [data-source-id="${source.id}"]`).click();
+  await other.getByRole("button",{name:"Add a note",exact:true}).click();
+  await expect(other.locator('.composer')).toHaveAttribute('data-kind','image');await expect(other.locator('.upload-filename')).toHaveText('cheese-boat-flag.png');await expect(other.locator('.composer-writing textarea')).toHaveValue("A lilac flag for a very dubious boat.");
   const photo=await publish(other);expect(photo.inspiredBy).toBe(source.id);expect(photo.type).toBe("image");
   await expect(page.locator(`.memory-card[data-memory-id="${photo.id}"] img`)).toBeAttached();
   expect(errors).toEqual([]);

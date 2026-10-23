@@ -145,6 +145,31 @@ describe("canvas redraw boundaries", () => {
     expect(artwork.fillRect.mock.calls.length).toBe(0);
   });
 
+  it("does not publish retained preview pixels as a fresh stroke on hover, pan or tool return",async()=>{
+    const onCursor=vi.fn(),onChange=vi.fn();
+    const brush={enabled:true,disabled:false,color:"#123456",cells:[],onChange};
+    await render({onCursor,brush});
+    const board=host.querySelector<HTMLElement>('.world-board')!;
+    board.setPointerCapture=vi.fn();board.hasPointerCapture=()=>true;
+    const pointer=async(type:string,x:number,y:number,shiftKey=false)=>{
+      const event=new MouseEvent(type,{bubbles:true,clientX:x,clientY:y,button:0,shiftKey});
+      Object.defineProperty(event,"pointerId",{value:1});
+      await act(async()=>board.dispatchEvent(event));
+    };
+    await pointer("pointerdown",60,60);await pointer("pointermove",66,60);await pointer("pointerup",66,60);
+    expect(onCursor.mock.calls.some(([update])=>update.stroke.length>0)).toBe(true);
+    const cells=onChange.mock.lastCall![0];expect(cells.length).toBeGreaterThan(0);
+    await render({brush:{...brush,cells}});
+    await act(async()=>vi.advanceTimersByTime(2200));
+    await pointer("pointermove",8100,3050);
+    expect(onCursor.mock.lastCall![0]).toMatchObject({x:8100,y:3050,tool:"paint",stroke:[]});
+    await pointer("pointerdown",8200,3050,true);await pointer("pointermove",8250,3050,true);
+    expect(onCursor.mock.lastCall![0].stroke).toEqual([]);
+    await pointer("pointerup",8250,3050,true);
+    await render({brush:{...brush,cells,enabled:false}});await render({brush:{...brush,cells}});
+    expect(onCursor.mock.lastCall![0].stroke).toEqual([]);
+  });
+
   it("still redraws persisted artwork, local previews and camera changes", async () => {
     await render();
     const artwork = context(".world-pixels"); artwork.fillRect.mockClear();

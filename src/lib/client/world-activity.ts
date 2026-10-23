@@ -42,9 +42,10 @@ export function placeSignals(changes:readonly PlaceSignal[],peers:readonly LiveP
   for(const peer of peers){
     if(seen.has(peer.sessionId)||peer.tool!=="paint"||!peer.stroke?.length||peer.updatedAt>now||now-peer.updatedAt>=STROKE_TTL_MS)continue;
     seen.add(peer.sessionId);
-    const areaId=geographicPlaceId(peer);if(!places.has(areaId))continue;
+    const cell=peer.stroke[peer.stroke.length-1],point={x:cell.x*GRID_SIZE+GRID_SIZE/2,y:cell.y*GRID_SIZE+GRID_SIZE/2};
+    const areaId=geographicPlaceId(point);if(!places.has(areaId))continue;
     const previous=signals.get(areaId);
-    signals.set(areaId,{id:`painting:${areaId}`,areaId,x:peer.x,y:peer.y,kind:"painting",painters:(previous?.kind==="painting"?previous.painters??0:0)+1,expiresAt:Math.max(peer.updatedAt+STROKE_TTL_MS,previous?.kind==="painting"?previous.expiresAt:0)});
+    signals.set(areaId,{id:`painting:${areaId}`,areaId,...point,kind:"painting",painters:(previous?.kind==="painting"?previous.painters??0:0)+1,expiresAt:Math.max(peer.updatedAt+STROKE_TTL_MS,previous?.kind==="painting"?previous.expiresAt:0)});
   }
   return [...signals.values()].sort((a,b)=>Number(b.kind==="painting")-Number(a.kind==="painting")||b.expiresAt-a.expiresAt||a.areaId.localeCompare(b.areaId)).slice(0,6);
 }

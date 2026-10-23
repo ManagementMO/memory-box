@@ -256,7 +256,9 @@ export function MemoryBoxApp() {
   const visitSignal=(signal:PlaceSignal)=>{
     if(busy)return;
     if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. Your pixels are still here.");return;}
-    if(signal.memoryId&&world?.memories.some(memory=>memory.id===signal.memoryId)){peekMemory(signal.memoryId,true);return;}
+    if(signal.memoryId&&world?.memories.some(memory=>memory.id===signal.memoryId)){
+      peekMemory(signal.memoryId,true);previewInvoker.current=document.querySelector<HTMLElement>(".world-location");return;
+    }
     closePanel();setPending(null);setActiveScene(sceneForPoint(signal.x,signal.y));
     cameraTo([{x:signal.x-240,y:signal.y-180,width:480,height:360}],"frame");
     requestAnimationFrame(()=>document.querySelector<HTMLElement>(".world-location")?.focus({preventScroll:true}));
@@ -311,7 +313,10 @@ export function MemoryBoxApp() {
   };
   const respondToBuild = (type:MemoryType) => {
     if(!selected?.isBuildInvitation)return;
-    if(draft&&!draft.editId&&draft.inspiredBy===selected.id&&draft.type===type)resumeDraft();
+    if(draft&&(draft.editId||draft.inspiredBy||draft.paintOperationId||draft.title.trim()||draft.body.trim()||draft.url.trim()||draft.file||draft.assetId||draft.previewUrl)){
+      resumeDraft();
+      if(draft.editId||draft.inspiredBy!==selected.id||draft.type!==type)setAnnouncement("Your draft is still here. Finish it before starting another contribution.");
+    }
     else startMemory(selected.id,undefined,type);
   };
   const useLandmarkTool = (tool:"paint"|"text"|"image") => {

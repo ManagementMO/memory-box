@@ -317,7 +317,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (!element || !data.onCursor) return;
     const rect = element.getBoundingClientRect(), worldPoint = screenToWorld(camera.current, { x: point.x - rect.left, y: point.y - rect.top });
     const tool = data.brush?.enabled || data.pending?.kind === "paint" ? "paint" : data.pending?.kind === "memory" ? "note" : "wander";
-    const cells = tool === "paint" ? preview ?? mergePaintCells(data.brush?.cells ?? [], stroke.current) : [];
+    // A saved local preview is not a drawing gesture. Hover, pan and tool
+    // updates must never renew another visitor's Painting indicator.
+    const cells = tool === "paint" ? preview ?? [] : [];
     data.onCursor({ ...worldPoint, tool, stroke: cells.slice(-128) });
   }, []);
   useEffect(() => {
@@ -331,6 +333,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
     if (!points.length) { setGestureNotice("You’ve reached this pilot’s drawing limit. Pan back toward the commons."); return; }
     stroke.current = mergePaintCells(stroke.current, points.map(p => ({ ...p, color: currentBrush.color })));
     g.previousCell = cell; draw();
+    return stroke.current;
   };
   const finish = (pointerId: number, cancelled: boolean) => {
     if (board.current) delete board.current.dataset.gesture;
@@ -341,8 +344,8 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       if (g?.kind === "paint" && !cancelled && latest.current.brush && !latest.current.brush.disabled) {
         const cells = mergePaintCells(latest.current.brush.cells, stroke.current);
         latest.current.brush.onChange(cells);
-        if (point) publishPointer(point, cells);
-      } else if (point) publishPointer(point, latest.current.brush?.cells ?? []);
+        if (point) publishPointer(point, stroke.current);
+      } else if (point) publishPointer(point);
       if (g?.kind === "pan" && !g.moved && !cancelled && point && pending) { const worldPoint = screenToWorld(camera.current, localPoint(point)); onPosition(worldPoint.x, worldPoint.y); }
       gesture.current = null; stroke.current = []; draw();
     } else { gesture.current = null; stroke.current = []; draw(); }
@@ -368,6 +371,7 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       // on the native button and opens once through its normal click handler.
       if (!card) event.currentTarget.setPointerCapture(event.pointerId);
       lastPointer.current = point;
+      let preview:Pixel[]|undefined;
       if (pointers.current.size === 2) {
         for (const pointerId of pointers.current.keys()) event.currentTarget.setPointerCapture(pointerId);
         stroke.current = []; draw();
@@ -377,9 +381,9 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
         const kind = brush?.enabled && !brush.disabled && !event.shiftKey && !event.altKey ? "paint" : "pan";
         event.currentTarget.dataset.gesture = kind;
         gesture.current = { kind, start: point, camera: { ...camera.current }, moved: false, memoryId: card?.dataset.memoryId }; stroke.current = [];
-        if (kind === "paint") paintAt(point);
+        if (kind === "paint") preview=paintAt(point);
       }
-      publishPointer(point);
+      publishPointer(point,preview);
     }}
     onPointerMove={event => {
       if (event.target instanceof Element && event.target.closest("input,textarea,select,.canvas-overlay")) return;
@@ -388,18 +392,19 @@ export function WorldCanvas({ world, selectedId, foundIds, onOpen, pending, onPo
       pointers.current.set(event.pointerId, point);
       const g = gesture.current;
       if (!g) { publishPointer(point); return; }
+      let preview:Pixel[]|undefined;
       if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()], middle = localPoint({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         const next = zoomCameraAt(g.camera, Math.hypot(b.x - a.x, b.y - a.y) / Math.max(g.distance!, 1), localPoint(g.start));
         camera.current = { x: middle.x - g.anchor!.x * next.z, y: middle.y - g.anchor!.y * next.z, z: next.z }; applyCamera();
-      } else if (g.kind === "paint") paintAt(point);
+      } else if (g.kind === "paint") preview=paintAt(point);
       else {
         const dx = point.x - g.start.x, dy = point.y - g.start.y;
         g.moved ||= Math.hypot(dx, dy) > 5;
         if (g.moved && g.memoryId && !event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
         camera.current = { ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy }; applyCamera();
       }
-      publishPointer(point);
+      publishPointer(point,preview);
     }} onPointerUp={event => finish(event.pointerId, false)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => { if (event.target === event.currentTarget && pointers.current.has(event.pointerId)) finish(event.pointerId, true); }}>
     <WorldGeography ref={geography} areas={derivedAreas} signals={signals} quiet={geographyQuiet||!!selectedId||!!pending||!!brush?.enabled} labelBlocked={labelBlocked} onVisit={onArea} onWorldMap={onWorldMap}/>
     <canvas ref={canvas} className="world-pixels" aria-label="Shared pixel artwork, made by contributors" role="img" />

@@ -32,9 +32,9 @@
 
 **Interfaces:** consumes actual WorldSnapshot/WorldArea/CameraView; produces initialWorldCamera(world,areas,viewport), encodeCanvasView(world,camera), decodeCanvasView(raw,world,viewport), CANVAS_VIEW_KEY. Existing distance IDs and commands remain stable.
 
-- [ ] Write/run failing regressions for readable phone arrival, desktop overview, empty/pixel-only fallback, validated scoped saved center, malformed storage and explicit-link precedence. Assert visible labels and center-preserving presets.
-- [ ] Implement pure helpers and guarded/debounced local persistence; integrate one mobile view disclosure, focus/Escape and a single top map/social row. Simplify far-distance paper detail through scoped CSS.
-- [ ] Run focused tests, full units/typecheck, then commit named paths.
+- [x] Write/run failing regressions for readable phone arrival, desktop overview, empty/pixel-only fallback, validated scoped saved center, malformed storage and explicit-link precedence. Assert visible labels and center-preserving presets.
+- [x] Implement pure helpers and guarded/debounced local persistence; integrate one mobile view disclosure, focus/Escape and a single top map/social row. Simplify far-distance paper detail through scoped CSS.
+- [x] Run focused tests, full units/typecheck, then commit named paths.
 
 ### Task 2: Compact build workbench
 
@@ -42,9 +42,9 @@
 
 **Interfaces:** consumes existing joinedBuild/source state; adds controlled compact:boolean and source-specific header disclosure, retaining existing Paint/Note/Photo callback names and source IDs.
 
-- [ ] Write/run failing real-handler tests for collapse/expand, title/tool visibility, same-source tool round trips, different-source reset, closed/removed source and retained drafts.
-- [ ] Implement compact layout and appropriate camera reframing, preserving request access and tool attribution.
-- [ ] Run focused/full tests and typecheck; commit named paths.
+- [x] Write/run failing real-handler tests for collapse/expand, title/tool visibility, same-source tool round trips, different-source reset, closed/removed source and retained drafts.
+- [x] Implement compact layout and appropriate camera reframing, preserving request access and tool attribution.
+- [x] Run focused/full tests and typecheck; commit named paths.
 
 ### Task 3: Spatial live activity and release
 
@@ -52,8 +52,8 @@
 
 **Interfaces:** activityChanges(previous,next,areas,now) yields actual location-based changes; placeSignals(changes,peers,areas,now) yields <=6 fresh actual place signals; hook owns baseline/expiry. Components accept readonly signals and navigate via actual memory/point.
 
-- [ ] Write/run failing baseline/diff/epoch/expiry/stale-presence tests and marker cache/travel regressions.
-- [ ] Implement bounded signals, map markers/list badges and quiet on-canvas label accents without rebuilding miniature artwork for peer or timer changes.
-- [ ] Build and run desktop/mobile browser flows, including 320px, reload/shared links, compact building, actual two-person updates/painting/text/photo, cursor expiry and cited Ask. Capture/review one paired matrix, correct in one batch, confirm once and run detector once.
-- [ ] Get one whole-branch code review; fix material findings with reproduced regressions. Refresh .21st design records from final source.
+- [x] Write/run failing baseline/diff/epoch/expiry/stale-presence tests and marker cache/travel regressions.
+- [x] Implement bounded signals, map markers/list badges and quiet on-canvas label accents without rebuilding miniature artwork for peer or timer changes.
+- [x] Build and run desktop/mobile browser flows, including 320px, reload/shared links, compact building, actual two-person updates/painting/text/photo, cursor expiry and cited Ask. Capture/review one paired matrix, correct in one batch, confirm once and run detector once.
+- [x] Get one whole-branch code review; fix material findings with reproduced regressions. Refresh .21st design records from final source.
 - [ ] Push PR, verify exact-head CI/preview, merge into codex/memory-box-mvp, verify exact public deployment and key anonymous flows. Audit and clean only owned fixtures; report release proof.

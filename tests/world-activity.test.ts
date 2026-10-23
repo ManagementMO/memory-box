@@ -36,9 +36,13 @@ describe("actual spatial activity",()=>{
   });
   it("requires a fresh real stroke for Painting and drops it at its actual expiry",()=>{
     const data=world(),areas=worldAreas(data.memories,[]);
-    expect(placeSignals([], [painter()],areas,10000)[0]).toMatchObject({kind:"painting",painters:1,x:8100,y:3050});
+    expect(placeSignals([], [painter()],areas,10000)[0]).toMatchObject({kind:"painting",painters:1,x:8103,y:3051});
     for(const peer of [painter({stroke:[]}),painter({tool:"wander"}),painter({updatedAt:12001}),painter({updatedAt:8000})])expect(placeSignals([],[peer],areas,10000)).toEqual([]);
     expect(placeSignals([],[painter()],areas,12000)).toEqual([]);
+  });
+  it("locates painting at an actual preview cell, even when the pointer is over another place",()=>{
+    const data=world({memories:[memory("a"),memory("b",12000)]}),areas=worldAreas(data.memories,[]);
+    expect(placeSignals([],[painter({x:12100,y:3100})],areas,10000)[0]).toMatchObject({kind:"painting",areaId:"place:4:2",x:8103,y:3051});
   });
   it("counts current painters once per place and prefers that live destination over a recent original",()=>{
     const before=world({memories:[]}),next=world({revision:11}),areas=worldAreas(next.memories,[]),changes=activityChanges(before,next,areas,10000);
