@@ -7,6 +7,7 @@ Memory Box is a collaborative canvas containing shared pixels, authored notes an
 ## Visual decisions
 
 - Warm white/pastel canvas with plum ink. Pixelify for the wordmark and short control labels; Schibsted for forms and readable longer text; Caveat for handwritten notes.
+- The literal canvas background keeps a gentle butter, blush, lilac and pale-blue gradient wash beneath the pixel dots and authored work, including open ground away from occupied places. Keep it static, viewport-sized and non-interactive at every zoom; forced-color mode uses the system canvas color. The color is atmosphere, never saved artwork or activity.
 - Original32px colored pixel objects for the six main tools. Installed Pixelarticons for smaller utility controls. Reuse Base UI Tooltip on native buttons.
 - Soft raised surfaces and clear active states. Stationary hit targets, visible labels, keyboard focus, reduced motion and safe-area spacing.
 - Hovering the dock changes only artwork: at most2px travel and6% magnification. No idle loops. No added animation runtime.

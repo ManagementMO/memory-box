@@ -1,4 +1,16 @@
 /* Geography stays under the actual shared art; place labels are wayfinding. */
+/* The viewport keeps its paper atmosphere even beyond occupied places. */
+.living-mosaic-app .world-board {
+  background-color:var(--porcelain);
+  background-image:
+    radial-gradient(#bca8cd55 .8px,transparent 1px),
+    radial-gradient(ellipse at 8% 12%,#ffeaba99,#ffeaba00 52%),
+    radial-gradient(ellipse at 88% 16%,#eadbfa99,#eadbfa00 56%),
+    radial-gradient(ellipse at 12% 90%,#ffdfe98c,#ffdfe900 54%),
+    radial-gradient(ellipse at 92% 88%,#dcecffb3,#dcecff00 58%);
+  background-size:24px 24px,100% 100%,100% 100%,100% 100%,100% 100%;
+  background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+}
 .living-mosaic-app .world-geography { position:absolute; inset:0; pointer-events:none; }
 .living-mosaic-app .world-geographic-ground { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
 .living-mosaic-app .world-transformed { z-index:1; }
@@ -57,3 +69,6 @@
  .living-mosaic-app .world-place-destination { min-height:56px; }
 }
 @media(prefers-reduced-motion:reduce) { .living-mosaic-app .world-map-signal { animation:none; } }
+@media(forced-colors:active) {
+ .living-mosaic-app .world-board { background-color:Canvas; background-image:none; }
+}
