@@ -42,4 +42,6 @@ Six synthetic installation events registered the event schema, under distinct ID
 
 ## Interpretation limits
 
+The October 27 pilot participation release adds local contribution recovery, saved places with real change comparisons, compact unpublished build prompts, distant-label refinement, a protected operator queue and conditional world refreshes. These are shared by both arrivals; this release does not change flag allocation, exposure eligibility, event payloads or metric definitions. Record the common product release when interpreting enrollment over time; it is not a new experiment or a winner decision.
+
 This is an anonymous-browser experiment. Clearing storage, opting out or using another device breaks continuity. Best-effort delivery and blockers can undercount events. The accepted-save boundary measures a completed contribution, not its quality or whether someone loved the experience. Returning sessions use custom visit events; native SDK session metrics are not authoritative here. The shared world's content and occupancy evolve during the test. Synthetic successful tests prove instrumentation and behavior, not real engagement, statistical power or an A/B winner.

@@ -7,6 +7,7 @@ import type {WorldCanvas} from "../src/components/world-canvas";
 import {MemoryBoxApp} from "../src/components/memory-box-app";
 import {WATERLOO_LANDMARKS} from "../src/lib/waterloo-landmarks";
 import {LIVING_LANDMARKS} from "../src/lib/living-landmarks";
+import {recoveryLocks} from "./helpers/recovery-locks";
 
 const harness=vi.hoisted(()=>({world:null as WorldSnapshot|null,canvas:null as ComponentProps<typeof WorldCanvas>|null,api:vi.fn(),refresh:vi.fn()}));
 vi.mock("../src/lib/client/use-world",()=>({useWorld:()=>({world:harness.world,identity:{id:"author",name:"Visitor"},connection:"live",refresh:harness.refresh,retry:()=>{},setIdentity:()=>{}})}));
@@ -27,6 +28,8 @@ describe("build tool source and destination",()=>{
   const click=async(selector:string)=>{const button=host.querySelector<HTMLButtonElement>(selector);expect(button,selector).not.toBeNull();await act(async()=>button!.click());};
   const join=async(id:string)=>{await click('[aria-label="Build together"]');await click(`.open-build-list [data-source-id="${id}"]`);};
   beforeEach(async()=>{
+    localStorage.clear();
+    vi.stubGlobal("navigator",{locks:recoveryLocks(),onLine:true,userAgent:"jsdom",webdriver:true});
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT",true);
     vi.stubGlobal("matchMedia",()=>({matches:true,addEventListener:()=>{},removeEventListener:()=>{}}));
     vi.stubGlobal("ResizeObserver",class{observe(){}disconnect(){}});
@@ -124,6 +127,58 @@ describe("build tool source and destination",()=>{
     expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("A draft I want to keep");
     expect(host.querySelector('.composer .lineage button')?.textContent).toContain("Build a");
     expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("keeps written work when the photo dock is chosen",async()=>{
+    await click('[aria-label="Leave"]');
+    const textarea=host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')!;
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!;
+    await act(async()=>{setter.call(textarea,"Keep my unfinished note");textarea.dispatchEvent(new Event("input",{bubbles:true}));});
+    await click('[aria-label="Close panel"]');await click('[aria-label="Leave a photo"]');
+    expect(host.querySelector('.composer')?.getAttribute('data-kind')).toBe("text");
+    expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("Keep my unfinished note");
+  });
+
+  it("recovers a local note after reload only when Resume is chosen",async()=>{
+    localStorage.clear();await click('[aria-label="Leave"]');
+    const textarea=host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')!;
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!;
+    await act(async()=>{setter.call(textarea,"Train carriage in progress");textarea.dispatchEvent(new Event("input",{bubbles:true}));});
+    await act(async()=>root.unmount());root=createRoot(host);await act(async()=>root.render(createElement(MemoryBoxApp)));
+    expect(host.querySelector('.composer')).toBeNull();
+    await click('[aria-label="Resume unfinished work"]');
+    await click('.recovery-list .resume-recovery');
+    expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("Train carriage in progress");
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit new-work choice after the world epoch changes",async()=>{
+    await click('[aria-label="Leave"]');
+    const textarea=host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')!;
+    const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!;
+    await act(async()=>{setter.call(textarea,"Keep this work across a reset");textarea.dispatchEvent(new Event("input",{bubbles:true}));});
+    harness.world={...harness.world!,epoch:2};await act(async()=>root.render(createElement(MemoryBoxApp)));
+    await click('.composer button[type="submit"]');
+    expect(host.querySelector<HTMLButtonElement>('.placement-bar .button-primary')?.disabled).toBe(true);
+    await click('[aria-label="Use unfinished work in this world"]');
+    expect(host.querySelector<HTMLTextAreaElement>('.composer-writing textarea')?.value).toBe("Keep this work across a reset");
+    await click('.composer button[type="submit"]');
+    expect(host.querySelector<HTMLButtonElement>('.placement-bar .button-primary')?.disabled).toBe(false);
+    expect(harness.api).not.toHaveBeenCalled();
+  });
+
+  it("does not copy a story snippet into a persistent bookmark name",async()=>{
+    await act(async()=>harness.canvas!.onOpen("a"));
+    await click('[aria-label="Your saved places"]');
+    expect(host.querySelector<HTMLInputElement>('.save-place-form input')?.value).toBe("");
+  });
+
+  it("warns when a brush preview cannot be recovered locally while retaining its pixels",async()=>{
+    vi.spyOn(Storage.prototype,"setItem").mockImplementation(()=>{throw new Error("storage denied");});
+    await click('[aria-label="Paint"]');
+    await act(async()=>harness.canvas!.brush!.onChange([{x:20,y:30,color:"#F3617C"}]));
+    expect(host.querySelector('.local-paint-status')?.textContent).toContain("Reloading can lose this preview");
+    expect(harness.canvas!.brush!.cells).toEqual([{x:20,y:30,color:"#F3617C"}]);
   });
 
   it("collapses a request to source-bound tools and can restore the complete details",async()=>{

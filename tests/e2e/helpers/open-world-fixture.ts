@@ -31,6 +31,7 @@ export class WorldFixture {
   readonly cleanupCounts = { pixelsRestored: 0, pixelsPreserved: 0, publicEventsRemoved: 0 };
   private pending: Promise<void>[] = [];
   private contexts: BrowserContext[] = [];
+  private knownActors = new WeakMap<Page, string>();
   private db: SupabaseClient;
   private ledgerPath: string;
 
@@ -91,7 +92,20 @@ export class WorldFixture {
       if (response.headers()["x-memory-box-e2e-synthetic"] === "1") return;
       const path = new URL(response.url()).pathname;
       if (!["/api/memories", "/api/uploads", "/api/paint"].includes(path)) return;
+      const actor = this.knownActors.get(page);
+      const clientId = path === "/api/paint" ? response.request().postDataJSON()?.opId : undefined;
       const operation = (async () => {
+        // Reload can destroy the page execution context and response body as
+        // soon as the UI accepts a save. Reconcile paint by the exact owned
+        // actor/client receipt, captured before any asynchronous browser read.
+        if (path === "/api/paint" && actor && typeof clientId === "string") {
+          const committed = await this.db.from("paint_operations").select("id")
+            .eq("actor_id", actor).eq("client_id", clientId).single();
+          if (committed.error || !committed.data) throw new Error("Could not track the exact owned paint receipt.");
+          this.operations.set(committed.data.id, actor);
+          this.ledger(false);
+          return;
+        }
         const value = await response.json();
         if (path === "/api/memories") this.memories.set(value.id, value.authorId);
         if (path === "/api/uploads") this.assets.add(value.assetId);
@@ -117,12 +131,14 @@ export class WorldFixture {
   }
 
   async actor(page: Page) {
-    return page.evaluate(() => {
+    const id = await page.evaluate(() => {
       const key = Object.keys(localStorage).find(key => /^sb-.+-auth-token$/.test(key));
       const id = key && JSON.parse(localStorage.getItem(key) || "null")?.user?.id;
       if (typeof id !== "string") throw new Error("The disposable guest identity is unavailable.");
       return id;
     });
+    this.knownActors.set(page, id);
+    return id;
   }
 
   async visitor(browser: Browser, baseURL: string, reference: Page, beforeConnect?: (page: Page) => void) {

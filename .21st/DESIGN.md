@@ -58,6 +58,8 @@ Wander gives occupied places a turn before a dense place dominates: it prefers u
 
 ## Sources
 
+Pilot participation keeps the same materials and canvas geometry. At World distance, unselected originals lead with paper/photo silhouettes; selecting still reveals an original through its existing readable preview. The compact pin in the header opens **Your places**, with a blank visitor-authored name field, actual local change comparisons and explicit return acknowledgement. Unfinished work appears only when recoverable work exists. Creation tools distinguish local browser recovery, a pending local image copy and storage failure. Together offers editable unpublished starter prompts when no open invitations exist; it never invents an active build. See `participation.css`, `saved-places.css`, the recovery/saved-place components and the pilot participation design.
+
 Visual tokens: `src/app/compact-ui.css` owns the compact controls, on top of `toybox.css`, `globals.css`, `living-mosaic.css`, and `poppy-canvas.css`.
 
 Spatial materials, visible threads, story overlays and bounded arrival feedback: `src/app/spatial-mosaic.css`.

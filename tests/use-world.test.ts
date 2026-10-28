@@ -3,9 +3,11 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorldSnapshot } from "../src/lib/types";
+import type {WorldSnapshotReceipt} from "../src/lib/client/world-snapshot";
 
-const mocks = vi.hoisted(() => ({ publicApi: vi.fn(), guestSession: vi.fn(), getBrowserSupabase: vi.fn() }));
+const mocks = vi.hoisted(() => ({ publicApi: vi.fn(), fetchWorldSnapshot: vi.fn(), guestSession: vi.fn(), getBrowserSupabase: vi.fn() }));
 vi.mock("../src/lib/client/api", () => ({ publicApi: mocks.publicApi }));
+vi.mock("../src/lib/client/world-snapshot", () => ({ fetchWorldSnapshot: mocks.fetchWorldSnapshot }));
 vi.mock("../src/lib/client/supabase", () => ({
   guestSession: mocks.guestSession,
   getBrowserSupabase: mocks.getBrowserSupabase,
@@ -49,6 +51,7 @@ describe("world connection lifecycle", () => {
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     mocks.publicApi.mockReset().mockResolvedValue(snapshot(1));
+    mocks.fetchWorldSnapshot.mockReset().mockImplementation(async (_previous, options) => ({snapshot:await mocks.publicApi("/api/world", options),etag:null}));
     // Most refresh tests deliberately never admit a guest. No browser/network service is used.
     mocks.guestSession.mockReset().mockReturnValue(new Promise(() => {}));
     removeChannel.mockClear(); channels.length = 0; listeners.length = 0;
@@ -167,6 +170,41 @@ describe("world connection lifecycle", () => {
     expect(current.world).toEqual(snapshot(1));
     expect(current.connection).toBe("error");
     expect(current.error).toBe("Synthetic snapshot failure");
+  });
+
+  it("keeps a validator paired with its accepted snapshot when an older body is rejected",async()=>{
+    const installed={snapshot:snapshot(8,2),etag:'W/"current"'};
+    mocks.fetchWorldSnapshot.mockResolvedValue(installed);await mount();
+    expect(mocks.fetchWorldSnapshot.mock.calls[0][0]).toBeNull();
+    mocks.fetchWorldSnapshot.mockResolvedValueOnce({snapshot:snapshot(7,2),etag:'W/"older"'});
+    await act(async()=>{await current.refresh();});
+    await act(async()=>{await current.refresh();});
+    expect(mocks.fetchWorldSnapshot.mock.calls.at(-1)![0]).toBe(installed);
+    expect(current.world).toBe(installed.snapshot);
+  });
+
+  it("installs changed index metadata at the same revision and accepts a newly identified world",async()=>{
+    const original={snapshot:snapshot(8,2),etag:'W/"original"'};
+    mocks.fetchWorldSnapshot.mockResolvedValue(original);await mount();
+    const reindexed={snapshot:{...snapshot(8,2),memories:[{id:"image",imageDescription:"New caption"}] as WorldSnapshot["memories"]},etag:'W/"caption"'};
+    mocks.fetchWorldSnapshot.mockResolvedValueOnce(reindexed);
+    await act(async()=>{await current.refresh();});expect(current.world).toBe(reindexed.snapshot);
+    const replacement={snapshot:{...snapshot(1),worldId:"another-world"},etag:'W/"another"'};
+    mocks.fetchWorldSnapshot.mockResolvedValueOnce(replacement);
+    await act(async()=>{await current.refresh();});expect(current.world).toBe(replacement.snapshot);
+  });
+
+  it("does not install the validator of a disposed request after reconnect",async()=>{
+    const first={snapshot:snapshot(1),etag:'W/"first"'},late=deferred<WorldSnapshotReceipt>();
+    mocks.fetchWorldSnapshot.mockResolvedValue(first);await mount();
+    mocks.fetchWorldSnapshot.mockReturnValueOnce(late.promise);
+    let pending!:Promise<WorldSnapshot|null>;await act(async()=>{pending=current.refresh();});
+    const replacement={snapshot:snapshot(2),etag:'W/"replacement"'};mocks.fetchWorldSnapshot.mockResolvedValue(replacement);
+    await act(async()=>{current.retry();});expect(await pending).toBeNull();
+    await act(async()=>{late.resolve({snapshot:snapshot(900),etag:'W/"late"'});});
+    await act(async()=>{await current.refresh();});
+    expect(mocks.fetchWorldSnapshot.mock.calls.at(-1)![0]).toBe(replacement);
+    expect(current.world).toBe(replacement.snapshot);
   });
 
   it("aborts on unmount and ignores completion from a fetch that does not honor its signal", async () => {

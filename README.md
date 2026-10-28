@@ -119,11 +119,17 @@ The initial release passed 14 live integration checks, including a visual search
 
 ## Deploy and operate
 
+Unfinished text/link drafts and up to 144 preview pixels are saved in this browser, scoped to the world, epoch and guest. Local image files use IndexedDB. After reload, **Unfinished work** offers an explicit Resume; nothing publishes automatically. Browser ownership locks preserve stable save IDs on ordinary recovery and prevent one active tab from erasing another's draft. If the record is active elsewhere or ownership locks are unavailable, making a separate copy requires another explicit choice. Blocked storage is shown in the creation tools; browser storage can still be cleared or evicted. Recovery is local effort protection, not cross-device account recovery.
+
+**Your places** in the header saves a visitor-named public location or original. It compares actual nearby originals, linked responses and painted cells with the last explicitly visited baseline. Polling and reloads do not acknowledge changes. Bookmarks store public IDs/versions, coordinates and bounded pixel hashes, never cached stories/photos. Journal operations preserve independent tab edits. The normal limit is 12 places; simultaneous saves may exceed that soft limit rather than dropping one. Hidden/removed originals are resolved from current public data.
+
 Vercel hosts the Next.js app. Configure the environment variables from `.env.example` in its production and preview environments, then deploy with `vercel --prod`. The included cron runs once per day and requires `CRON_SECRET`; do not expose that secret in a browser URL.
 
 `GET /api/health` reports the committed world revision, memory/index counts, and model names. Public Ask is limited to 12 requests per guest per hour and 120 across the pilot per day. Find and Ask share 2,000 native-query reservations per day. Indexing can lease 80 jobs per day; reaching the ceiling leaves due jobs for the next day without burning attempts. Uploads are limited to 60 reservations per day globally and 12 per guest per hour, bounded to 5 MB, and decoded under an image-pixel limit. Edits are limited to 30 per guest per 10 minutes, and unchanged saves avoid reindexing. These are pilot controls; anonymous identities can be recreated and are not a complete abuse defense.
 
 Use the local operator CLI with the server secret to review reports and manage the commons. See `npm run operator -- --help`. Operator authority lives in `profiles.is_operator`, never editable user metadata.
+
+The browser [operator queue](https://memory-box-commons.vercel.app/operator) uses an existing unsuspended operator session; it cannot grant access. It shows the 100 newest open reports and current source context, with authenticated private image previews and explicit hide/restore/resolve/dismiss confirmations. Report decisions use a service-only transaction and private append-only receipts. Resolving/dismissing changes the report state only. Apply `20261027164840_operator_report_reviews.sql` before deploying these actions. Role revocation, session replacement, stale responses and changed source-image versions clear private content. `node supabase/tests/report-review.mjs` exercises the migration in disposable local PostgreSQL without touching the linked project.
 
 ```sh
 npm run operator -- profiles
@@ -136,7 +142,7 @@ The CLI also supports restore, pause/resume, bounded paint clearing, contributor
 
 The writable pilot plane spans -60000 through 59999 world pixels on each axis, with 6px cells and at most 144 unique cells per paint operation. The original 1200×720 dimensions frame the starter places. Pixels are sparse and the bitmap matches the viewport, but snapshots still transfer all occupied rows; the current implementation is not an unlimited-scale canvas service. Ask searches authored originals and image descriptions; it does not interpret arbitrary painted pixels.
 
-The guest identity lives in browser storage. Clearing that storage or changing devices loses editing access to those memories. Account recovery/linking, larger-scale spatial paging, multilingual retrieval evaluation, automated abuse classification, and a browser operator dashboard are future work.
+The guest identity lives in browser storage. Clearing that storage or changing devices loses editing access to those memories. Account recovery/linking, larger-scale spatial paging, multilingual retrieval evaluation and automated abuse classification remain future work. Conditional world refreshes now avoid retransmitting unchanged snapshots; busy changed worlds still transfer full snapshots. See the [retrieval/performance tools and evidence](docs/retrieval-performance-evidence.md) and [uncoached pilot playbook](docs/pilot-playbook.md). Controlled QA is not proof of adoption or community-wide search relevance.
 
 ## Design and evidence
 
