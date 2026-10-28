@@ -17,5 +17,7 @@ jobs:
       - run: npm test
       - name: Profile revocation concurrency regression
         run: node supabase/tests/profile-revocation-concurrency.mjs
+      - name: Private report review authorization and concurrency
+        run: node supabase/tests/report-review.mjs
       - run: npm run typecheck
       - run: npm run build

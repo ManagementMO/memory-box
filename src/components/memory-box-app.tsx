@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, CircleHelp, Copy, Flag, GitBranch, Hand, Image as ImageIcon, Leaf, Link2, List, MapPin, Maximize2, MessageCircle, Minimize2, Paintbrush, Pencil, Plus, Search, Send, Shuffle, Sparkles, StickyNote, Trash2, Undo2, UserRound, UsersRound, WifiOff, X } from "./pixel-icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AnswerResponse, Memory, MemoryType, NewMemory, Pixel, SceneId, SearchResponse, SessionIdentity } from "@/lib/types";
+import type { AnswerResponse, Memory, MemoryType, NewMemory, Pixel, SceneId, SearchResponse, SessionIdentity, WorldSnapshot } from "@/lib/types";
 import { PAPER_COLORS, SCENES, SHAPES, memorySize, sceneById, sceneForPoint, shapePixels, suggestedSpot, type ShapeId } from "@/lib/scenes";
 import { api, uploadImage } from "@/lib/client/api";
 import { getBrowserSupabase } from "@/lib/client/supabase";
@@ -40,11 +40,18 @@ import { memoryContributionMark, paintContributionMark, type ContributionMark } 
 import {useArrivalExperiment} from "@/lib/client/use-arrival-experiment";
 import {measurement} from "@/lib/client/posthog-client";
 import {MeasurementSettings} from "./measurement-settings";
+import {useContributionRecovery} from "@/lib/client/use-contribution-recovery";
+import {hasDraftWork,prepareRecoveredDraft,type ContributionRecovery} from "@/lib/client/contribution-recovery";
+import {RecoveryPanel} from "./recovery-panel";
+import {useSavedPlaces} from "@/lib/client/use-saved-places";
+import type {SavedPlaceWithChanges} from "@/lib/client/saved-places";
+import {SavedPlacesPanel} from "./saved-places-panel";
+import {SAVED_PLACE_LABEL_LIMIT} from "@/lib/client/saved-places";
 
-type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | "world" | null;
+type Panel = "scene" | "paint" | "compose" | "inspect" | "search" | "activity" | "browse" | "profile" | "report" | "together" | "build" | "people" | "share" | "world" | "recovery" | "places" | null;
 type Pending = { kind: "paint"; x: number; y: number; shape: ShapeId; color: string; opId: string } | { kind: "memory"; x: number; y: number; sceneId: SceneId };
 type SavedPaint = {operationId:string;buildId:string|null};
-const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", build: "Build here", people: "Who’s here", share: "Meet here", world:"World map" };
+const PANEL_TITLES: Record<Exclude<Panel, null>, string> = { scene: "Patch", paint: "Paint", compose: "Add to the canvas", inspect: "Original", search: "Find a memory", activity: "Activity", browse: "Browse", profile: "Your profile", report: "Report a contribution", together: "Build together", build: "Build here", people: "Who’s here", share: "Meet here", world:"World map",recovery:"Unfinished work",places:"Your places" };
 const relativeDate = (date: string) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date));
 function revealMobilePanel() {
   // The reader is now a bottom sheet over the world. Keep the shared place in view.
@@ -93,6 +100,31 @@ export function MemoryBoxApp() {
   const searchDataRef = useRef(searchData), connectionRef = useRef(connection);
   searchDataRef.current = searchData; connectionRef.current = connection;
   const panelRef = useRef(panel); panelRef.current = panel;
+  const [discardConfirm,setDiscardConfirm]=useState(false);
+  const recovery=useContributionRecovery(world&&identity?{worldId:world.worldId,epoch:world.epoch,actorId:identity.id}:null,{draft,brush:brushPixels,brushOperationId:brushOperation.current,sceneId:activeScene,joinedBuildId,pending,camera:cameraView.current?sharedPlaceFromCamera(cameraView.current):null});
+  const savedPlaces=useSavedPlaces(world);
+  const [placeName,setPlaceName]=useState("");
+  const recoveryContext=useRef({world,identity});recoveryContext.current={world,identity};
+  useEffect(()=>setDiscardConfirm(false),[draft?.clientId]);
+
+  async function restoreWork(record:ContributionRecovery,asCopy=false){
+    if(busy||hasDraftWork(draft)||brushPixels.length){setAnnouncement("Finish or discard the work already open before recovering another draft.");return;}
+    setBusy("Restoring your work…");
+    try{
+      const work=await recovery.restore(record,asCopy);if(!work)return;
+      const current=recoveryContext.current;
+      if(!current.world||!current.identity||current.world.worldId!==record.scope.worldId||current.world.epoch!==record.scope.epoch||current.identity.id!==record.scope.actorId)return;
+      const prepared=prepareRecoveredDraft(work.draft,current.world.memories,current.identity.id);
+      let restoredDraft=prepared.draft;
+      const edit=current.world.memories.find(memory=>memory.id===restoredDraft?.editId);
+      if(restoredDraft?.editId&&restoredDraft.type==="image"&&!restoredDraft.previewUrl&&edit)restoredDraft={...restoredDraft,previewUrl:edit.imageUrl};
+      setDraft(restoredDraft);setBrushPixels(work.brush);brushOperation.current=work.brushOperationId;setPending(work.pending);setActiveScene(work.sceneId);
+      setJoinedBuildId(work.joinedBuildId&&world?.memories.some(memory=>memory.id===work.joinedBuildId&&memory.isBuildInvitation)?work.joinedBuildId:null);
+      setPanel(work.pending?null:work.brush.length?"paint":"compose");setSelectedId(restoredDraft?.inspiredBy??null);setFormError("");
+      if(work.camera)setCommand(old=>({key:old.key+1,type:"place",place:work.camera!}));
+      setAnnouncement(work.missingPhoto?"Your words are restored. Choose the image again; its local copy was unavailable.":work.copied?"A separate copy is ready. The original is kept because another tab may still be using it.":prepared.detached?"The original changed or is unavailable. Your words are restored as a new draft for you to review.":"Your unfinished work is back. Check the canvas if a save was interrupted.");
+    }finally{setBusy("");}
+  }
 
   useEffect(() => {
     if (!contribution) return;
@@ -144,7 +176,7 @@ export function MemoryBoxApp() {
   const invitationLandmark=useRef(landmark);invitationLandmark.current=landmark;
   const compactBuild=panel==="build"&&buildCollapsed&&!!selected?.isBuildInvitation;
   const panelTitle = compactBuild&&selected?originalLabel(selected):panel === "search" ? searchMode === "ask" ? "Ask the box" : "Find a memory" : panel === "compose" && draft?.editId ? "Edit your memory" : panel === "compose" && draft?.isBuildInvitation ? "Start a build" : panel === "compose" && draft?.inspiredBy ? "Build on a memory" : panel ? PANEL_TITLES[panel] : "";
-  const canWrite = !!identity && connection === "live";
+  const canWrite = !!identity && connection === "live"&&!recovery.scopeChanged;
   const isAnswer = (data: SearchResponse | AnswerResponse | null): data is AnswerResponse => !!data && "status" in data;
   const currentSearchData = useMemo(() => searchData && world ? projectSearch(searchData, world.memories) : null, [searchData, world]);
   const effectiveAnswerInvalid = answerInvalid || !!(searchData && "sourceVersions" in searchData && world && answerSourcesChanged(searchData.sourceVersions, world.memories, searchData.results.map(result => result.memory)));
@@ -284,6 +316,7 @@ export function MemoryBoxApp() {
   };
   const startPlace = () => {
     if(!world||busy)return;
+    if(recovery.records.length&&!hasDraftWork(draft)){setPanel("recovery");setAnnouncement("Resume or discard your unfinished work before starting a place.");return;}
     if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before starting a place.");return;}
     if(draft&&(draft.editId||draft.inspiredBy||draft.paintOperationId||draft.title.trim()||draft.body.trim()||draft.url.trim()||draft.file||draft.assetId||draft.previewUrl)){
       resumeDraft();setAnnouncement("Your draft is still here. Finish it before starting another place.");return;
@@ -300,13 +333,45 @@ export function MemoryBoxApp() {
     if (!place) { setAnnouncement("Move back inside the drawing area to share a spot."); return; }
     setSharePlace(place); setPanel("share"); setArrival(null); setFormError("");
   };
+  const openPlaces=()=>{
+    setPlaceName("");
+    setPanel("places");setFormError("");setPending(null);
+  };
+  const saveCurrentPlace=(event:FormEvent)=>{
+    event.preventDefault();const view=cameraView.current;
+    const place=selected?sharedPlaceForOriginal(selected,memorySize(selected),view?.z??.9):view?sharedPlaceFromCamera(view):null;
+    if(!place){setFormError("Move inside the canvas to save this place.");return;}
+    const saved=savedPlaces.save({...place,...(selected?{originalId:selected.id}:{})},placeName);
+    if(saved){setAnnouncement("Place saved in this browser.");setPlaceName("");setFormError("");}
+  };
+  const visitSavedPlace=(place:SavedPlaceWithChanges)=>{
+    if(busy)return;
+    if(brushPixels.length){setPanel("paint");setAnnouncement("Add or clear your pixel preview before traveling. This place stays unread.");return;}
+    const original=world?.memories.find(memory=>memory.id===place.originalId);
+    if(original)openMemory(original.id);
+    else{closePanel();setCommand(old=>({key:old.key+1,type:"place",place:{x:place.x,y:place.y,z:place.z}}));}
+    savedPlaces.visit(place.id);
+  };
+  const copyWorkHere=()=>{
+    recovery.rebind();
+    setDraft(old=>old?{...old,clientId:crypto.randomUUID(),editId:undefined,expectedVersion:undefined,inspiredBy:undefined,paintOperationId:undefined,assetId:undefined,previewUrl:old.file?old.previewUrl:null}:null);
+    brushOperation.current=null;setPending(null);setJoinedBuildId(null);setLastPaint(null);setFormError("");
+    setPanel(draft?"compose":"paint");setAnnouncement("This is new unfinished work here. Review it before adding it to the canvas.");
+  };
+  function assertPublicationContext(start:WorldSnapshot,actor:SessionIdentity,epoch?:number){
+    const current=recoveryContext.current;
+    if(current.world?.worldId!==start.worldId||current.world.epoch!==start.epoch||current.identity?.id!==actor.id||epoch!==undefined&&epoch!==start.epoch)throw new Error("The world or session changed during this save. Your preview is kept; review it as new work before trying again.");
+  }
   const startMemory = (inspiredBy?: string, paintOperationId?: string, type: MemoryType = "text") => {
+    if(hasDraftWork(draft)){resumeDraft();setAnnouncement("Your unfinished contribution is still here. Finish it or discard it before starting another.");return false;}
+    if(recovery.records.length){setPanel("recovery");setAnnouncement("Resume or discard your unfinished work before starting a new contribution.");return false;}
     setAnnouncement("");
     setArrival(null);
     setDraft({ ...newDraft(inspiredBy, paintOperationId), type }); setPending(null); setPanel("compose"); setBackToSearch(false); setBackToDraft(false); setFormError("");
     const original = world?.memories.find((memory) => memory.id === inspiredBy);
     if (original) { setActiveScene(original.sceneId); setSelectedId(original.id); focusNeighborhood(original,"compose"); }
     else setSelectedId(null);
+    return true;
   };
   const showPaint = () => {
     setJoinedBuildId(null);
@@ -317,7 +382,10 @@ export function MemoryBoxApp() {
     if (paintMode === "draw" && view && view.z < 1.7) setCommand(old => ({ key: old.key + 1, type: "restore", camera: { ...view, ...zoomCameraAt(view, 1.7 / view.z, { x: view.width / 2, y: view.height / 2 }) } }));
   };
   const startBuildHere = () => {
-    startMemory();setDraft(current=>current?{...current,isBuildInvitation:true}:current);
+    if(startMemory())setDraft(current=>current?{...current,isBuildInvitation:true}:current);
+  };
+  const startBuildPrompt=(title:string,body:string)=>{
+    if(startMemory())setDraft(current=>current?{...current,title,body,isBuildInvitation:true}:current);
   };
   const paintInBuild = () => {
     if(!selected?.isBuildInvitation)return;
@@ -334,7 +402,7 @@ export function MemoryBoxApp() {
     else startMemory(selected.id,undefined,type);
   };
   const useLandmarkTool = (tool:"paint"|"text"|"image") => {
-    if(tool==="paint")showPaint();else startMemory(undefined,undefined,tool);
+    if(tool==="paint")showPaint();else if(!startMemory(undefined,undefined,tool))return;
     setActiveScene(landmark.sceneId);
     cameraTo([{x:landmark.x,y:landmark.y,width:landmark.width,height:landmark.height}],"frame");
   };
@@ -403,7 +471,8 @@ export function MemoryBoxApp() {
         if (world.paintingPaused) throw new Error("Painting is paused for a moment. You can still leave a memory.");
         setBusy("Saving pixels…");
         const cells = shapePixels(pending.shape, pending.color, pending.x, pending.y);
-        const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId: pending.opId, sceneId: sceneForPoint(pending.x + 36, pending.y + 36), cells }) });
+        const result = await api<{ operationId: string;epoch?:number } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId: pending.opId, sceneId: sceneForPoint(pending.x + 36, pending.y + 36), cells }) });
+        assertPublicationContext(world,identity,result.epoch);
         acceptPaintTurn(result);
         measurement.contribution(result.operationId,"paint",!!joinedBuildId,cells.length);
         setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); await refresh(); setPending(null); setPanel("paint"); setActiveScene(sceneForPoint(pending.x + 36, pending.y + 36));
@@ -413,9 +482,11 @@ export function MemoryBoxApp() {
         let assetId = draft.assetId;
         if (draft.type === "image" && draft.file && !assetId) { setBusy("Uploading your image…"); assetId = await uploadImage(draft.file); setDraft((old) => old?.clientId === draft.clientId ? { ...old, assetId } : old); }
         setBusy("Leaving your memory…");
+        assertPublicationContext(world,identity);
         const body: NewMemory = { clientId: draft.clientId, type: draft.type, title: draft.title.trim(), body: draft.body.trim(), color: draft.color, x: pending.x, y: pending.y, sceneId: pending.sceneId, ...(draft.isBuildInvitation?{isBuildInvitation:true}:{}), ...(draft.type === "link" ? { url: draft.url.trim() } : {}), ...(draft.type === "image" && assetId ? { assetId } : {}), ...(draft.inspiredBy ? { inspiredBy: draft.inspiredBy } : {}), ...(draft.paintOperationId ? { paintOperationId: draft.paintOperationId } : {}) };
         const result = await api<Memory | { memory: Memory }>("/api/memories", { method: "POST", body: JSON.stringify(body) });
         const saved = "memory" in result ? result.memory : result;
+        assertPublicationContext(world,identity);
         measurement.contribution(saved.id,saved.type,!!saved.inspiredBy);
         const current = await refresh();
         const visible = current?.memories.some(memory => memory.id === saved.id);
@@ -430,9 +501,11 @@ export function MemoryBoxApp() {
 
   async function saveEdit() {
     if (!draft?.editId || busy) return;
+    if(!world||!identity||!canWrite){setFormError("The connection, guest or world changed. Review this as new work before saving.");return;}
     setBusy("Saving changes…"); setFormError("");
     try {
       await api(`/api/memories/${draft.editId}`, { method: "PATCH", body: JSON.stringify({ expectedVersion: draft.expectedVersion, title: draft.title.trim(), body: draft.body.trim(), url: draft.type === "link" ? draft.url.trim() : null, color: draft.color, isBuildInvitation:!!draft.isBuildInvitation }) });
+      assertPublicationContext(world,identity);
       const current = await refresh();
       const visible = current?.memories.some(memory => memory.id === draft.editId);
       setSelectedId(visible ? draft.editId : null); setPanel(visible ? "inspect" : null); setDraft(null); setBackToDraft(false); setAnnouncement(current ? "Your memory has been updated." : "Saved. Reconnecting to show it.");
@@ -455,7 +528,7 @@ export function MemoryBoxApp() {
   const changeBrush = (cells: Pixel[]) => { setBrushPixels(mergePaintCells([], cells)); brushOperation.current = null; setFormError(""); setAnnouncement(""); };
   const clearBrush = () => { setBrushPixels([]); brushOperation.current = null; setFormError(""); setAnnouncement("Your preview is cleared. The shared picture is unchanged."); };
   async function publishBrush() {
-    if (!brushPixels.length || busy || !world) return;
+    if (!brushPixels.length || busy || !world||!identity) return;
     if(paintWait>0){setFormError(`Next move in ${paintWait}s. Your preview is still here.`);return;}
     if (!canWrite) { setFormError("Reconnect before sharing these pixels. Your preview is still here."); return; }
     if (world.paintingPaused) { setFormError("Painting is paused. Your preview is still here."); return; }
@@ -463,7 +536,8 @@ export function MemoryBoxApp() {
     const opId = brushOperation.current ?? crypto.randomUUID(); brushOperation.current = opId;
     try {
       const middle = brushPixels[Math.floor(brushPixels.length / 2)];
-      const result = await api<{ operationId: string } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId, sceneId: sceneForPoint(middle.x * GRID_SIZE, middle.y * GRID_SIZE), cells: brushPixels.map(({ x, y, color }) => ({ x, y, color })) }) });
+      const result = await api<{ operationId: string;epoch?:number } & PaintTurnTiming>("/api/paint", { method: "POST", body: JSON.stringify({ opId, sceneId: sceneForPoint(middle.x * GRID_SIZE, middle.y * GRID_SIZE), cells: brushPixels.map(({ x, y, color }) => ({ x, y, color })) }) });
+      assertPublicationContext(world,identity,result.epoch);
       acceptPaintTurn(result);
       measurement.contribution(result.operationId,"paint",!!joinedBuildId,brushPixels.length);
       setLastPaint({operationId:result.operationId,buildId:joinedBuildId}); setBrushPixels([]); brushOperation.current = null; await refresh();
@@ -560,6 +634,8 @@ export function MemoryBoxApp() {
       {descendants.length ? <div className="descendants"><h4>{descendants.length === 1 ? "1 contribution builds on this" : `${descendants.length} contributions build on this`}</h4>{descendants.map((memory) => <MemoryResult key={memory.id} memory={memory} onOpen={() => openMemory(memory.id, backToSearch)} />)}</div> : null}
       {own ? <div className="owner-actions">
         <button type="button" className="text-button" onClick={() => {
+          if(hasDraftWork(draft)){resumeDraft();setAnnouncement("Finish or discard your existing draft before editing another original.");return;}
+          if(recovery.records.length){setPanel("recovery");return;}
           setDraft({ ...newDraft(selected.inspiredBy ?? undefined), editId: selected.id, expectedVersion: selected.version, type: selected.type, title: selected.title, body: selected.body, color: selected.color, url: selected.url ?? "", previewUrl: selected.imageUrl, isBuildInvitation:!!selected.isBuildInvitation });
           setPanel("compose"); setFormError("");
         }}><Pencil size={13} />Edit memory</button>
@@ -598,6 +674,7 @@ export function MemoryBoxApp() {
     if (!world) return null;
     const events = world.events.filter(event => event.kind === "paint" && !event.isSeed).slice(0, 3);
     return <div className="paint-panel">
+      {brushPixels.length > 0 && recovery.status === "unavailable" ? <p className="local-paint-status form-error" role="status">Browser storage is unavailable. Reloading can lose this preview; add your pixels before leaving.</p> : null}
       {joinedBuildId?<button type="button" className="joined-build-return" aria-label="Back to build" onClick={()=>joinBuild(joinedBuildId)}><UsersRound size={18}/><span><strong>Back to build</strong><small>{joinedBuild?originalLabel(joinedBuild):"Original unavailable"}</small></span><ArrowUpRight size={15}/></button>:null}
       <PaintKit mode={paintMode} onMode={mode => { setPaintMode(mode); setAnnouncement(""); if (mode === "draw") revealCanvas(); }} shape={shape} onShape={setShape} color={paintColor} onColor={setPaintColor} />
       <div className="paint-turn-status" data-paint-wait={paintWait}><span className="turn-light" aria-hidden="true"/><div><strong>{paintWait>0?`Next save in ${paintWait}s`:paintTurnKnown?"Ready to paint":"Checking your turn…"}</strong><small>144 pixels per save · 15-second turns</small></div><progress max={15} value={15-paintWait} aria-label="Paint turn recharge"/></div>
@@ -615,6 +692,8 @@ export function MemoryBoxApp() {
 
   function renderPanel() {
     if (!world) return null;
+    if(panel==="recovery")return <RecoveryPanel records={recovery.records} busy={!!busy} onResume={(record,copy)=>void restoreWork(record,copy)} onDiscard={recovery.discard} copyRequiredId={recovery.copyRequiredId} notice={recovery.notice}/>;
+    if(panel==="places")return <><form className="save-place-form" onSubmit={saveCurrentPlace}><label className="field">Name this place<input value={placeName} onChange={event=>setPlaceName(event.target.value)} maxLength={SAVED_PLACE_LABEL_LIMIT} required placeholder="Our train, late-night corner…"/></label><button type="submit" className="button button-primary button-full" disabled={!!busy||savedPlaces.limitReached||savedPlaces.status==="loading"}><MapPin size={15}/>Save this place</button>{formError?<p className="form-error" role="alert">{formError}</p>:null}</form><SavedPlacesPanel places={savedPlaces.places} status={savedPlaces.status} error={savedPlaces.error} disabled={!!busy} onVisit={visitSavedPlace} onRemove={savedPlaces.remove} onRename={savedPlaces.rename}/></>;
     if(panel==="world")return <WorldMap world={world} areas={areas} camera={mapCamera} onVisit={visitArea} onPoint={visitMapPoint} onStart={startPlace} disabled={!!busy} signals={placeSignals} onSignal={visitSignal}/>;
     if (panel === "share" && sharePlace) return <SharePlacePanel world={world} place={sharePlace} onBack={sharePlace.memoryId && selected ? () => setPanel("inspect") : undefined} />;
     if (panel === "people") return <div className="people-panel">
@@ -627,11 +706,16 @@ export function MemoryBoxApp() {
     if (panel === "together") return <div className="together-panel">
       <button type="button" className="button button-primary button-full" onClick={startBuildHere}><Plus size={16}/>Start a build here</button>
       <div className="open-build-list">{invitations.length?<><h3 className="section-label">Open builds</h3>{invitations.map(memory=><MemoryResult key={memory.id} memory={memory} onOpen={()=>joinBuild(memory.id)}/>)}</>:<p className="panel-copy">No open invitations yet.</p>}</div>
+      {!invitations.length?<div className="build-starters"><p>Start with a prompt. Edit it before posting.</p><button type="button" onClick={()=>startBuildPrompt("A train with no sensible destination","Add a carriage, a passenger, or a destination. Keep building the train beside this note.")}><PixelToolIcon tool="paint"/><span>Add a carriage<small>Pixels, notes and photos welcome</small></span><ArrowRight size={15}/></button><button type="button" onClick={()=>startBuildPrompt("Finish this sentence","The weirdest thing in my hometown was… Add your ending beside this note, then leave a new sentence for someone else.")}><PixelToolIcon tool="note"/><span>Finish a sentence<small>Leave an ending, then a beginning</small></span><ArrowRight size={15}/></button></div>:null}
       {presence.peers.some(peer=>peer.tool==="paint")?<button type="button" className="text-button live-build-link" onClick={followLivePainter}><Paintbrush size={16}/>Visit a live painter<ArrowUpRight size={14}/></button>:null}
       <h3 className="panel-lead">{landmark.title}</h3><p className="panel-copy">{landmark.invitation}</p><div className="panel-actions"><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("paint")}><Paintbrush size={16}/>Paint there</button><button type="button" className="button button-secondary" onClick={()=>useLandmarkTool("text")}>Add a note<Plus size={16}/></button><button type="button" className="text-button" onClick={()=>useLandmarkTool("image")}><ImageIcon size={16}/>Leave a photo</button></div><div className="landmark-paths"><span className="section-label">Other patches</span>{landmarks.map((place,index)=><button type="button" key={place.id} onClick={()=>visitLandmark(index)} aria-pressed={landmarkIndex===index}>{place.title}<ArrowUpRight size={16}/></button>)}</div>
     </div>;
     if(panel==="build")return <BuildWorkbench memory={selected} compact={!!compactBuild} onPaint={paintInBuild} onNote={()=>respondToBuild("text")} onPhoto={()=>respondToBuild("image")} onRead={()=>selected&&openMemory(selected.id)} onShare={()=>selected&&openShare(selected)} onTogether={buildTogether}/>;
-    if (panel === "compose" && draft) return <MemoryComposer draft={draft} onChange={next => { setDraft(next); setFormError(""); }} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => { draftScene.current = activeScene; openMemory(id, false, true); }} onPreview={previewMemory} busy={busy} error={formError} />;
+    if (panel === "compose" && draft) return <>
+      <p className="local-draft-status" role="status">{recovery.scopeChanged?"Kept in the previous world or guest session. Choose Use as new work here to continue.":recovery.status==="unavailable"?"Only in this tab — browser storage is unavailable.":recovery.photoStatus==="saving"?"Saving a local image copy…":recovery.photoStatus==="missing"?"Words saved locally. Choose the image again after a reload.":recovery.status==="saved"?"Saved in this browser":"Unfinished work"}</p>
+      <MemoryComposer draft={draft} onChange={next => { setDraft(next); setFormError(""); }} parent={parent} sceneId={activeScene} onSceneChange={setActiveScene} onOriginal={(id) => { draftScene.current = activeScene; openMemory(id, false, true); }} onPreview={previewMemory} busy={busy} error={formError} onNewCopy={copyWorkHere}/>
+      <button type="button" className="text-button discard-draft" disabled={!!busy} onClick={()=>{if(discardConfirm){setDraft(null);setPending(null);closePanel();setAnnouncement("Unfinished draft discarded. The shared canvas is unchanged.");}else setDiscardConfirm(true);}}><Trash2 size={14}/>{discardConfirm?"Discard this draft for good?":"Discard draft"}</button>
+    </>;
     if (panel === "inspect") return renderInspector();
     if (panel === "search") return renderSearch();
     if (panel === "paint") return renderPaint();
@@ -666,6 +750,7 @@ export function MemoryBoxApp() {
       <button type="button" className="wordmark" aria-label="Memory Box, see the whole commons" disabled={!!busy} onClick={() => { closePanel(); setCommand((old) => ({ key: old.key + 1, type: "fit" })); }}><span className="brand-mark" aria-hidden="true"><BoxMark /></span>memorybox</button>
       <button type="button" className="header-find" aria-label="Find a memory or ask the box" onClick={()=>{setPanel("search");setPending(null);setSelectedId(null);}} disabled={!world || !!busy}><Search size={17}/><span>Find / ask</span><kbd>/</kbd></button>
       <button type="button" className="header-browse icon-button" aria-label="Browse" onClick={()=>{setPanel("browse");setSelectedId(null);}} disabled={!world || !!busy}><List size={17}/></button>
+      <button type="button" className="header-places icon-button" aria-label="Your saved places" onClick={openPlaces} disabled={!world||!!busy}><MapPin size={17}/>{savedPlaces.places.some(place=>place.changes.hasChanges)?<span className="saved-places-dot"/>:null}</button>
       <button type="button" className="leave-button" aria-label="Leave something" onClick={() => draft ? resumeDraft() : startMemory()} disabled={!world || !!busy}>
         <span className="leave-button-face"><span className="leave-button-icon" aria-hidden="true"><Plus size={16} /></span><span className="leave-button-label">Leave something</span><span className="leave-button-short" aria-hidden="true">Leave</span></span>
       </button>
@@ -674,12 +759,14 @@ export function MemoryBoxApp() {
     <div className="world-topbar visually-hidden"><div className={`connection-state ${connection}`}><span />{connection === "live" ? "Live" : connection === "connecting" ? "Connecting" : connection === "reconnecting" ? "Reconnecting" : connection === "offline" ? "Offline" : "Connection paused"}</div></div>
     {worldError && world ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{worldError} Your draft is safe.</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
     {connection !== "live" && world && !worldError ? <div className="connection-banner" role="status"><WifiOff size={15} /><span>{connection === "offline" ? "You’re offline. This is the last world you saw; reconnect to contribute or ask." : "Reconnecting to the world. Your drafts and question are still here."}</span><button type="button" onClick={retry}>Reconnect</button></div> : null}
+    {recovery.scopeChanged?<div className="connection-banner" role="alert"><span>The world or guest session changed. Your old work is kept separately.</span><button type="button" aria-label="Use unfinished work in this world" disabled={!!busy||!identity||connection!=="live"} onClick={copyWorkHere}>Use as new work here</button></div>:null}
     <div className={`app-workspace${panel ? " has-panel" : ""}`}>
       {world && arrivalSelection ? <div className="world-column"><WorldCanvas world={world} arrivalSelection={arrivalSelection} onArrival={measurement.arrived} areas={areas} signals={placeSignals} onArea={visitArea} onWorldMap={showWholeWorld} geographyQuiet={!!panel} peers={presence.peers} onCursor={presence.publish} activeScene={activeScene} selectedId={selectedId} foundIds={foundIds} pending={pendingVisual} command={command} onCameraChange={rememberCamera} contribution={contribution} floating={floating} brush={{ enabled: panel === "paint" && paintMode === "draw" && !pending, color: paintColor, cells: brushPixels, disabled: !!busy || world.paintingPaused, onChange: changeBrush }} onScene={(id) => { if (!busy) showScene(id); }} onOpen={(id) => { if (!busy) {if(panel||backToSearch)openMemory(id,panel==="search"||backToSearch);else peekMemory(id);} }} onPosition={updatePosition}>
         <div className="world-social-controls canvas-overlay" role="group" aria-label="People and sharing">
           {!panel && !pending ? <button type="button" className="meet-here-button" onClick={() => openShare()}><MapPin size={18} /><span>Meet here</span></button> : null}
           <button type="button" className="world-presence" aria-label="Who is here" disabled={!!busy} data-presence-connected={presence.connected} data-visitor-count={presence.visitors.length} onClick={()=>{setPanel("people");setPending(null);}}><span className="presence-stack" aria-hidden="true">{presence.visitors.slice(0,3).map(v=><span style={{background:v.color}} key={v.sessionId}>{v.name.slice(0,1).toUpperCase()}</span>)}<span className="self-dot">{identity?.name.slice(0,1).toUpperCase()||"Y"}</span></span><span>{presence.connected ? `${presence.visitors.length+1} here` : "Joining…"}</span><span className={`presence-light ${presence.connected ? "is-live" : ""}`} /></button>
         </div>
+        {recovery.records.length&&!panel&&!pending?<button type="button" className="resume-work-button canvas-overlay" aria-label="Resume unfinished work" onClick={()=>setPanel("recovery")}><Undo2 size={15}/><span>Unfinished work</span><ArrowRight size={14}/></button>:null}
         {arrival && !panel && !pending ? <div className="shared-arrival canvas-overlay" aria-label="Shared spot">
           <div className="shared-arrival-heading"><MapPin size={22} /><strong>{arrival.memoryId ? "This original is unavailable" : "You’re at the shared spot"}</strong><button type="button" className="icon-button" aria-label="Dismiss shared spot" onClick={() => setArrival(null)}><X size={16} /></button></div>
           <p>{arrival.memoryId ? "Its spot is still here to explore." : "Paint together, or add something nearby."}</p>

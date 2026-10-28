@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionIdentity, WorldNotice, WorldSnapshot } from "@/lib/types";
-import { publicApi } from "./api";
+import { fetchWorldSnapshot, type WorldSnapshotReceipt } from "./world-snapshot";
 import { getBrowserSupabase, guestSession, identityFromSession, safeConnectionFailure } from "./supabase";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline" | "error";
@@ -26,6 +26,7 @@ export function useWorld() {
   const subscribed = useRef(false);
   const admissionError = useRef("");
   const worldRef = useRef<WorldSnapshot | null>(null);
+  const snapshotReceipt = useRef<WorldSnapshotReceipt | null>(null);
 
   const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
     if (!mounted.current) return null;
@@ -39,10 +40,12 @@ export function useWorld() {
       const isCurrent = () => mounted.current && generation.current === active.generation && !active.controller.signal.aborted;
       const request = async (): Promise<WorldSnapshot | null> => {
         try {
-          const next = await publicApi<WorldSnapshot>("/api/world", { signal: active.controller.signal });
+          const received = await fetchWorldSnapshot(snapshotReceipt.current, { signal: active.controller.signal });
           if (!isCurrent()) return null;
+          const next = received.snapshot;
           const current = worldRef.current;
-          if (!current || next.epoch > current.epoch || (next.epoch === current.epoch && next.revision >= current.revision)) {
+          if (!current || next.worldId !== current.worldId || next.epoch > current.epoch || (next.epoch === current.epoch && next.revision >= current.revision)) {
+            snapshotReceipt.current = received;
             worldRef.current = next;
             setWorld(next);
           }

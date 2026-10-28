@@ -11,6 +11,8 @@ import "./compact-ui.css";
 import "./spatial-mosaic.css";
 import "./open-builds.css";
 import "./world-atlas.css";
+import "./saved-places.css";
+import "./participation.css";
 
 const schibsted = localFont({ src: "../../public/fonts/schibsted-grotesk-latin.woff2", variable: "--font-schibsted", weight: "400 700", display: "swap", fallback: ["Arial", "sans-serif"] });
 const pixelify = localFont({ src: "../../public/fonts/pixelify-sans-latin.woff2", variable: "--font-pixelify", weight: "400 700", display: "swap", adjustFontFallback: false, fallback: ["sans-serif"] });

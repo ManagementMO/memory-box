@@ -1,0 +1,45 @@
+[
+  {
+    "id": "exact-long-way-home",
+    "category": "exact",
+    "query": "The long way home",
+    "relevantIds": ["00000000-0000-4000-8000-000000000001"],
+    "ask": true
+  },
+  {
+    "id": "paraphrase-car-rides",
+    "category": "paraphrase",
+    "query": "childhood road trips",
+    "relevantIds": ["00000000-0000-4000-8000-000000000001"],
+    "requireMeaningMatch": true
+  },
+  {
+    "id": "campus-goose-interview",
+    "category": "campus-joke",
+    "query": "territorial stakeholder management",
+    "relevantIds": ["20000000-0000-4000-8000-000000000002"]
+  },
+  {
+    "id": "photo-goose-neckwear",
+    "category": "photo-description",
+    "query": "a white goose wearing a pink necktie",
+    "relevantIds": ["20000000-0000-4000-8000-000000000002"],
+    "requireMeaningMatch": true,
+    "ask": true
+  },
+  {
+    "id": "build-on-cassette",
+    "category": "build-on",
+    "query": "How did Nina's car memory lead to Lee's Sunday cassette?",
+    "relevantIds": ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000003"],
+    "ask": true
+  },
+  {
+    "id": "unanswerable-neptune",
+    "category": "out-of-corpus",
+    "query": "What is Neptune's exact distance from the Sun in kilometers?",
+    "relevantIds": [],
+    "expectsInsufficient": true,
+    "ask": true
+  }
+]

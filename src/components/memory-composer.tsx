@@ -25,9 +25,10 @@ const WRITING_PROMPTS = [
   "Leave a sentence someone else can finish.",
 ];
 
-export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange, onOriginal, onPreview, busy, error }: {
+export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange, onOriginal, onPreview, busy, error, onNewCopy }: {
   draft: MemoryDraft; onChange: (draft: MemoryDraft) => void; parent?: Memory; sceneId: SceneId; onSceneChange: (id: SceneId) => void;
   onOriginal: (id: string) => void; onPreview: () => void; busy: string; error: string;
+  onNewCopy?:()=>void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState<{ draftId: string; index: number } | null>(null);
@@ -60,6 +61,7 @@ export function MemoryComposer({ draft, onChange, parent, sceneId, onSceneChange
       {activePrompt !== null ? <div className="composer-prompt-copy"><span>Prompt</span><p aria-live="polite">{WRITING_PROMPTS[activePrompt]}</p></div> : null}
       <button type="button" disabled={!!busy} onClick={() => setPrompt({ draftId: draft.clientId, index: activePrompt === null ? 0 : (activePrompt + 1) % WRITING_PROMPTS.length })}><Shuffle size={16} />{activePrompt === null ? "Need a prompt?" : "Another prompt"}</button>
     </div> : null}
+    {onNewCopy&&(draft.editId||draft.inspiredBy&&!parent)?<div className="draft-copy-option"><p className="fine-print">{draft.editId?"Keep the original and leave your changes separately.":"The linked original is unavailable. Retry the saved placement, or make a new contribution."}</p><button type="button" className="text-button" disabled={!!busy} onClick={onNewCopy}>Start a new copy<ArrowRight size={14}/></button></div>:null}
     {error ? <p className="form-error" role="alert">{error}</p> : null}
     <button type="submit" className="button button-primary button-full" disabled={!!busy}>{busy || (draft.editId ? "Save changes" : "Choose its place")}{!busy ? <ArrowRight size={16} /> : <span className="spinner" />}</button>
     {draft.editId ? <p className="fine-print">Position and connections stay unchanged.</p> : null}
